@@ -7,7 +7,7 @@ Order matters: app first, demo page last. Do not start with the demo page, and d
 That in the real fork Ollama app on a Mac, with a tool-capable model, an enabled plugin tool is actually called by the model in chat, the result comes back, and the model answers using that result.
 
 ## Step 0: Checkout, stop if anything is missing
-- Fork repo, branch plugin-seed, commit 4af35b9136bc03a02d9e177ea1bfdc771e89f397.
+- Fork repo, branch plugin-seed, commit c8d2fa5a31c02f559da197b98bd8106014ad4d86 or later. This pack itself is in the fork at docs/MAC-APP-PACK.md, so pulling plugin-seed gets the pack too.
 - Verify these files exist: app/tools/plugin.go, app/tools/plugin_test.go, app/ui/app/src/components/Plugins.tsx.
 - If any is missing, stop and report the exact missing file. Do not substitute the stock app, and do not use the companion seed repo as a substitute for the fork.
 
