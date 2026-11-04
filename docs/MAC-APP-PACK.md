@@ -14,10 +14,10 @@ That in the real fork Ollama app on a Mac, with a tool-capable model, an enabled
 ## Step 1: Fork server, prove it is the fork, with a plugin folder set
 - Stop the stock Ollama server if it is running on 11434, and keep the installed Ollama app stopped, so it cannot restart a stock server on 11434.
 - Build a fork binary named ollama in the fork repo root, from plugin-seed. The desktop app helper finds ollama in PATH, so the binary name must be ollama, not ollama-plugins.
-- Set OLLAMA_PLUGINS_DIR to the seed plugins folder, the folder that contains browser, computer, and skill-creator, for example /path/to/ollama-plugin-seed/plugins, using the real Mac path, not this example path. Do not point it at the fork repo plugins folder, that folder holds Go code, not plugin folders.
-- Build and run the fork server from plugin-seed on 11434, with OLLAMA_PLUGINS_DIR set as above.
-- Check: GET http://127.0.0.1:11434/api/plugins must return browser, computer, and skill-creator, not an empty list.
-- Why: stock Ollama does not have /api/plugins, so this check proves the server is the fork. If it returns 404, stop, the server is stock, not the fork. If it returns an empty list, stop, OLLAMA_PLUGINS_DIR is wrong or missing, do not go on to the Plugins page.
+- Bundled plugins: the fork now ships browser and computer plugin folders in its own plugins folder, at plugins/browser and plugins/computer. A fork server run from the repo root lists those two with no env var set. OLLAMA_PLUGINS_DIR is now an override, not a requirement. If you set it, point it at a folder containing browser and computer plugin folders, for example the fork plugins folder, or the seed plugins folder which also contains skill-creator, using the real Mac path, not this example path.
+- Build and run the fork server from plugin-seed on 11434, from the repo root, with no env var set if you want the bundled default, or with OLLAMA_PLUGINS_DIR set as above if you want the seed set.
+- Check: GET http://127.0.0.1:11434/api/plugins must return browser and computer, not an empty list. If you used the seed folder, it will also return skill-creator.
+- Why: stock Ollama does not have /api/plugins, so this check proves the server is the fork. If it returns 404, stop, the server is stock, not the fork. If it returns an empty list, stop, the server was not run from the repo root and no valid plugin folder was set, do not go on to the Plugins page.
 
 ## Step 2: Fork desktop app, production UI build, not dev mode, fork first in PATH
 - In app/ui/app: npm install, then npm run build, with no new dependencies.
