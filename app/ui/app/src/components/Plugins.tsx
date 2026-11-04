@@ -21,6 +21,56 @@ type Plugin = {
 
 type Tab = "plugins" | "skills" | "installed";
 
+function PluginIcon({ name, size = 32 }: { name: string; size?: number }) {
+  const common = { width: size, height: size, viewBox: "0 0 48 48" } as const;
+  if (name === "browser") {
+    return (
+      <svg {...common}>
+        <circle cx="24" cy="24" r="20" fill="#fff" />
+        <path d="M24 4 A20 20 0 0 1 41.3 34 L24 24 Z" fill="#EA4335" />
+        <path d="M41.3 34 A20 20 0 0 1 6.7 34 L24 24 Z" fill="#FBBC05" />
+        <path d="M6.7 34 A20 20 0 0 1 24 4 L24 24 Z" fill="#34A853" />
+        <circle cx="24" cy="24" r="10" fill="#4285F4" stroke="#fff" strokeWidth="3" />
+      </svg>
+    );
+  }
+  if (name === "computer") {
+    return (
+      <svg {...common}>
+        <defs>
+          <linearGradient id="cu" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#38bdf8" />
+            <stop offset="0.5" stopColor="#a78bfa" />
+            <stop offset="1" stopColor="#f472b6" />
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="44" height="44" rx="11" fill="url(#cu)" />
+        <rect x="9" y="11" width="30" height="20" rx="3" fill="#fff" />
+        <circle cx="14" cy="16" r="2" fill="#f43f5e" />
+        <circle cx="20" cy="16" r="2" fill="#f59e0b" />
+        <circle cx="26" cy="16" r="2" fill="#22c55e" />
+        <rect x="13" y="21" width="14" height="3" rx="1.5" fill="#c4b5fd" />
+        <rect x="13" y="26" width="9" height="2" rx="1" fill="#e5e7eb" />
+        <path d="M30 33l5 2-2 5 2 2-2 1-2-2-2 3z" fill="#111" />
+        <rect x="20" y="33" width="8" height="3" rx="1.5" fill="#fff" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <rect x="4" y="4" width="40" height="40" rx="8" fill="#e9d5ff" />
+      <path d="M18 14h12v6a3 3 0 0 1 6 0v6h-6a3 3 0 0 1 0 6v6H18v-6a3 3 0 0 1-6 0v-6h6a3 3 0 0 1 0-6v-6z" fill="#7c3aed" />
+    </svg>
+  );
+}
+
+function examplesFor(name: string): string[] {
+  if (name === "browser") return ["Browser: test my checkout flow on localhost", "Browser: list the tools on the page I allowed"];
+  if (name === "computer") return ["Computer: open my calendar and find a good time for a focus block", "Computer: list the apps I can control"];
+  if (name === "skill-creator") return ["Skill: validate a new skill folder before I share it", "Skill: check a SKILL.md frontmatter name matches its folder"];
+  return ["Use " + name + " from Ollama, locally only"];
+}
+
 async function fetchPlugins(): Promise<Plugin[]> {
   const response = await fetch(`${API_BASE}/api/plugins`);
   if (!response.ok) {
@@ -160,8 +210,8 @@ export default function Plugins() {
                   : ""
               }`}
             >
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-neutral-900 text-sm font-medium text-white dark:bg-white dark:text-black">
-                {plugin.name.charAt(0).toUpperCase()}
+              <span className="flex h-8 w-8 flex-none items-center justify-center">
+                <PluginIcon name={plugin.name} size={32} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">
@@ -213,8 +263,8 @@ export default function Plugins() {
             </p>
             <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
               <div className="flex items-start gap-4">
-                <span className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-neutral-900 text-lg font-medium text-white dark:bg-white dark:text-black">
-                  {selected.name.charAt(0).toUpperCase()}
+                <span className="flex h-12 w-12 flex-none items-center justify-center">
+                  <PluginIcon name={selected.name} size={48} />
                 </span>
                 <div>
                   <h3 className="text-xl font-medium">{selected.name}</h3>
@@ -234,6 +284,14 @@ export default function Plugins() {
               >
                 {selected.enabled ? "Disable" : "Enable"}
               </button>
+            </div>
+
+            <div className="mt-6 flex flex-col items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 px-5 py-6 dark:from-neutral-800 dark:via-neutral-800 dark:to-neutral-800">
+              {examplesFor(selected.name).map((example) => (
+                <span key={example} className="rounded-full bg-white px-4 py-2 text-sm shadow-sm dark:bg-neutral-900">
+                  {example} →
+                </span>
+              ))}
             </div>
 
             <div className="mt-6 rounded-2xl bg-neutral-100 px-5 py-4 dark:bg-neutral-800">
@@ -284,8 +342,16 @@ export default function Plugins() {
               ))}
             </div>
 
-            <h4 className="mt-8 text-base font-medium">About</h4>
+            <h4 className="mt-8 text-base font-medium">Information</h4>
             <dl className="mt-3 divide-y divide-neutral-200 rounded-xl border border-neutral-200 dark:divide-neutral-700 dark:border-neutral-700">
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Developer</dt>
+                <dd>Ollama plugin fork, local only</dd>
+              </div>
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Category</dt>
+                <dd>Productivity</dd>
+              </div>
               <div className="flex justify-between px-4 py-3 text-sm">
                 <dt className="text-neutral-500">Plugin</dt>
                 <dd>{selected.name}</dd>
