@@ -1,4 +1,5 @@
-# Mac app pack: fork Ollama app, Plugins visible, tool call in chat
+# Mac app pack: Ollamapaca, Plugins visible, tool call in chat
+App name: Ollamapaca, locked Nov 4, 2026. For a source run, build the desktop binary named Ollamapaca, not app, so the Mac menu bar says Ollamapaca. Repo stays richardsondx/ollama, branch plugin-seed, packaged bundle name unchanged until a separate rename is approved.
 Status: READY TO RUN ON MAC. Nothing in this pack is claimed as done until screenshots 1, 2, and 3 arrive back here.
 Stage 1: stage1-fork-app-2026-11-04-01. Stage 2: stage2-fork-app-2026-11-04-01.
 Order matters: app first, demo page last. Do not start with the demo page, and do not open the installed Ollama app from Applications.
@@ -7,7 +8,7 @@ Order matters: app first, demo page last. Do not start with the demo page, and d
 That in the real fork Ollama app on a Mac, with a tool-capable model, an enabled plugin tool is actually called by the model in chat, the result comes back, and the model answers using that result.
 
 ## Step 0: Checkout, stop if anything is missing
-- Fork repo, branch plugin-seed, commit c8d2fa5a31c02f559da197b98bd8106014ad4d86 or later. This pack itself is in the fork at docs/MAC-APP-PACK.md, so pulling plugin-seed gets the pack too.
+- Fork repo, branch plugin-seed, commit 376a2124aedb81070d40afe1912e08caf0e5697e or later. This pack itself is in the fork at docs/MAC-APP-PACK.md, so pulling plugin-seed gets the pack too.
 - Verify these files exist: app/tools/plugin.go, app/tools/plugin_test.go, app/ui/app/src/components/Plugins.tsx.
 - If any is missing, stop and report the exact missing file. Do not substitute the stock app, and do not use the companion seed repo as a substitute for the fork.
 
@@ -21,8 +22,8 @@ That in the real fork Ollama app on a Mac, with a tool-capable model, an enabled
 
 ## Step 2: Fork desktop app, production UI build, not dev mode, fork first in PATH
 - In app/ui/app: npm install, then npm run build, with no new dependencies.
-- Start the source app with the fork repo root first in PATH, for example PATH=/path/to/ollama:$PATH go run ./cmd/app from the app folder, using the real Mac path, so the helper resolves the fork ollama binary built in step 1, not /opt/homebrew/bin/ollama.
-- In app: go generate ./..., then go run ./cmd/app with that PATH set.
+- Start the source app with the fork repo root first in PATH, for example PATH=/path/to/ollama:$PATH ./Ollamapaca from the app folder, using the real Mac path, so the helper resolves the fork ollama binary built in step 1, not /opt/homebrew/bin/ollama.
+- In app: go generate ./..., then go build -o Ollamapaca ./cmd/app, then run ./Ollamapaca with that PATH set. Do not use go run ./cmd/app, because macOS then names the app menu "app", not Ollamapaca.
 - Do not open the installed Ollama app from Applications.
 - Do not use the -dev flag in this run, because -dev fixes the API port to 3001.
 - After the app starts, re-check GET http://127.0.0.1:11434/api/plugins. If it is now 404, stop, the app launched stock Ollama again, and the PATH fix did not take effect.
@@ -44,14 +45,14 @@ That in the real fork Ollama app on a Mac, with a tool-capable model, an enabled
 - If the model cannot call tools, pick another tool-capable model and record it. A chat with a non-tool model does not count.
 
 ## Step 6: Seed server
-- From the seed repo on main, commit 478c68d8, run the seed server on 127.0.0.1:11435.
+- From the seed repo on main, commit 2b0443f7884403dbe66da26c64f2539ee829820d or later, run the seed server on 127.0.0.1:11435.
 - Check: GET http://127.0.0.1:11435/api/tools lists browser tools.
 - If the seed copy has no webmcp-demo/ folder, pull seed main first, do not push anything.
 
 ## Step 7: Demo, only after steps 1 to 6 pass
 - Check which port is free, record one port, and use that exact port everywhere in this step.
 - Serve webmcp-demo on that recorded port, open that exact origin in Chrome.
-- In the Ollama Chrome extension popup, allow only that exact origin.
+- Localhost and 127.0.0.1 are auto-allowed in the current extension, and clicking Allow re-discovers tools without a reload. For a remote origin, allow only that exact origin in the Ollama Chrome extension popup.
 - On the demo page, click List registered tools, record local_echo and local_time.
 - Note: the demo page text saying 3000 does not override the recorded port. If the recorded port is 3001, the allowed origin is http://localhost:3001, and the page opened is http://localhost:3001/.
 - Do not allow any other site, and do not open Chrome tabs for other work in this step.

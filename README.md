@@ -1,6 +1,6 @@
-# Ollama, with plugins
+# Ollamapaca
 
-This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use tools the way Codex skills and Claude Code plugins do, without a hosted service.
+Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use tools the way Codex skills and Claude Code plugins do, without a hosted service. The app name is Ollamapaca, the repo stays richardsondx/ollama, branch plugin-seed, and the packaged bundle name is unchanged until a separate rename is approved.
 
 Branch: plugin-seed. Main on this fork is still upstream Ollama, with no plugin code. Do not use main for plugins.
 
