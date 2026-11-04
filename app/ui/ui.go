@@ -971,6 +971,34 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 			if err != nil {
 				s.log().Warn("plugin tools unavailable, continuing chat without plugin tools", "error", err)
 			} else {
+				// @ mention rule: if the prompt contains any @ mention,
+				// only the mentioned enabled plugins are registered
+				// for this turn. A mention of a non-enabled plugin
+				// registers nothing for that plugin, and it never
+				// turns a plugin on. If there is no @ mention, all
+				// enabled plugins are registered, as before.
+				if tools.HasMention(req.Prompt) {
+					enabledNames := []string{}
+					seenNames := map[string]bool{}
+					for _, pluginTool := range pluginTools {
+						if !seenNames[pluginTool.Plugin] {
+							seenNames[pluginTool.Plugin] = true
+							enabledNames = append(enabledNames, pluginTool.Plugin)
+						}
+					}
+					mentioned := tools.MentionedPlugins(req.Prompt, enabledNames)
+					mentionedSet := map[string]bool{}
+					for _, name := range mentioned {
+						mentionedSet[name] = true
+					}
+					filtered := []*tools.PluginTool{}
+					for _, pluginTool := range pluginTools {
+						if mentionedSet[pluginTool.Plugin] {
+							filtered = append(filtered, pluginTool)
+						}
+					}
+					pluginTools = filtered
+				}
 				for _, pluginTool := range pluginTools {
 					registry.Register(pluginTool)
 					if browser == nil && strings.HasPrefix(pluginTool.Name(), "browser.") {
