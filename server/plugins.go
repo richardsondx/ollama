@@ -11,8 +11,10 @@ import (
 // pluginDir returns the plugin folder to load. It is configurable
 // with OLLAMA_PLUGINS_DIR so the proof slice can point at a test
 // folder without changing server code. The default, plugins, is a
-// folder next to where the server runs, and an empty or missing
-// folder simply lists no plugins.
+// folder next to where the server runs, and it now ships bundled
+// browser and computer plugin folders in this repo, so a server
+// run from the repo root lists them with no env var set. An empty
+// or missing folder simply lists no plugins.
 func pluginDir() string {
 	if v := os.Getenv("OLLAMA_PLUGINS_DIR"); v != "" {
 		return v

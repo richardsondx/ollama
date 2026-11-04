@@ -1,0 +1,12 @@
+{
+  "name": "computer",
+  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Dry-run by default.",
+  "version": "0.1.0",
+  "tools": [
+    {"name": "list_apps", "description": "List apps available to the computer adapter.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_app_state", "description": "Get the current state for an app, without touching it.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}}, "required": ["app"]}},
+    {"name": "click", "description": "Click an element or coordinate in an app. Requires confirmation for risky targets.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}, "element_index": {"type": "integer"}}, "required": ["app"]}},
+    {"name": "type_text", "description": "Type text into an app. Sensitive data transmission requires pre-approval or confirmation.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}, "text": {"type": "string"}}, "required": ["app", "text"]}}
+  ],
+  "allowlist": {"hosts": ["127.0.0.1"]}
+}

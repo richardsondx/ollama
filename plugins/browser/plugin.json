@@ -1,0 +1,43 @@
+{
+  "name": "browser",
+  "description": "Browse pages through page-declared WebMCP tools only, for sites the user allowed. No DOM fallback is in this seed.",
+  "version": "0.1.0",
+  "tools": [
+    {
+      "name": "webmcp.list_tools",
+      "description": "List WebMCP tools registered by allowed sites.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "webmcp.execute_tool",
+      "description": "Execute a WebMCP tool on the page that registered it, through the Chrome extension.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "site",
+          "tool"
+        ]
+      }
+    }
+  ],
+  "allowlist": {
+    "hosts": [
+      "127.0.0.1"
+    ],
+    "sites": "user-allowed only"
+  }
+}
