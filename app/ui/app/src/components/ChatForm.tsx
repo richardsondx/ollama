@@ -1010,6 +1010,15 @@ function ChatForm({
         )}
 
         <div className="relative w-full px-5">
+          {detectedMentions.length > 0 && !supportsWebSearch && (
+            <div className="pb-2">
+              <p className="text-xs text-neutral-600 dark:text-neutral-300">
+                This model cannot call tools, so a plugin mention will not
+                run. Pick a tool-capable model first, see Plugins, Model
+                compatibility, for which models work.
+              </p>
+            </div>
+          )}
           {detectedMentions.length > 0 && (
             <div className="flex flex-wrap gap-2 pb-2">
               {detectedMentions.map((plugin) => (
@@ -1045,6 +1054,12 @@ function ChatForm({
               role="listbox"
               className="absolute bottom-full left-5 z-50 mb-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
             >
+              {!supportsWebSearch && (
+                <p className="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-300">
+                  This model cannot call tools, so a plugin mention will
+                  not run. Pick a tool-capable model first.
+                </p>
+              )}
               {filteredMentions.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-neutral-500">
                   No enabled plugins match. Enable a plugin in Plugins
