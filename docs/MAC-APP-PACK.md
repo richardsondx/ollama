@@ -11,17 +11,21 @@ That in the real fork Ollama app on a Mac, with a tool-capable model, an enabled
 - Verify these files exist: app/tools/plugin.go, app/tools/plugin_test.go, app/ui/app/src/components/Plugins.tsx.
 - If any is missing, stop and report the exact missing file. Do not substitute the stock app, and do not use the companion seed repo as a substitute for the fork.
 
-## Step 1: Fork server, prove it is the fork
-- Stop the stock Ollama server if it is running on 11434.
-- Build and run the fork server from plugin-seed on 11434.
-- Check: GET http://127.0.0.1:11434/api/plugins must return plugins.
-- Why: stock Ollama does not have /api/plugins, so this check proves the server is the fork. If it returns 404, stop, the server is stock, not the fork.
+## Step 1: Fork server, prove it is the fork, with a plugin folder set
+- Stop the stock Ollama server if it is running on 11434, and keep the installed Ollama app stopped, so it cannot restart a stock server on 11434.
+- Build a fork binary named ollama in the fork repo root, from plugin-seed. The desktop app helper finds ollama in PATH, so the binary name must be ollama, not ollama-plugins.
+- Set OLLAMA_PLUGINS_DIR to the seed plugins folder, the folder that contains browser, computer, and skill-creator, for example /path/to/ollama-plugin-seed/plugins, using the real Mac path, not this example path. Do not point it at the fork repo plugins folder, that folder holds Go code, not plugin folders.
+- Build and run the fork server from plugin-seed on 11434, with OLLAMA_PLUGINS_DIR set as above.
+- Check: GET http://127.0.0.1:11434/api/plugins must return browser, computer, and skill-creator, not an empty list.
+- Why: stock Ollama does not have /api/plugins, so this check proves the server is the fork. If it returns 404, stop, the server is stock, not the fork. If it returns an empty list, stop, OLLAMA_PLUGINS_DIR is wrong or missing, do not go on to the Plugins page.
 
-## Step 2: Fork desktop app, production UI build, not dev mode
+## Step 2: Fork desktop app, production UI build, not dev mode, fork first in PATH
 - In app/ui/app: npm install, then npm run build, with no new dependencies.
-- In app: go generate ./..., then go run ./cmd/app.
+- Start the source app with the fork repo root first in PATH, for example PATH=/path/to/ollama:$PATH go run ./cmd/app from the app folder, using the real Mac path, so the helper resolves the fork ollama binary built in step 1, not /opt/homebrew/bin/ollama.
+- In app: go generate ./..., then go run ./cmd/app with that PATH set.
 - Do not open the installed Ollama app from Applications.
 - Do not use the -dev flag in this run, because -dev fixes the API port to 3001.
+- After the app starts, re-check GET http://127.0.0.1:11434/api/plugins. If it is now 404, stop, the app launched stock Ollama again, and the PATH fix did not take effect.
 - If the build fails, report the exact error, do not work around it with the stock app.
 
 ## Step 3: App check, screenshot 1
