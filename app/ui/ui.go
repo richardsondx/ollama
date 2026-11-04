@@ -957,6 +957,32 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 				registry.Register(&tools.WebFetch{})
 			}
 		}
+
+		// Plugin tools (chat wiring, 2026-11-04): register tools from
+		// enabled plugins alongside the web search tools, independent
+		// of the WebSearch toggle, for tool-capable models only. Best
+		// effort: a fetch failure is logged and chat continues with
+		// no plugin tools, it never breaks chat. If a browser plugin
+		// tool is registered, make sure a browser state object exists,
+		// because the existing tool loop below reads browser state
+		// for any tool name starting with "browser.".
+		if hasToolsCapability {
+			pluginTools, err := tools.LoadPluginTools(ctx, tools.PluginToolsURLFromEnv(), tools.PluginExecutorURLFromEnv())
+			if err != nil {
+				s.log().Warn("plugin tools unavailable, continuing chat without plugin tools", "error", err)
+			} else {
+				for _, pluginTool := range pluginTools {
+					registry.Register(pluginTool)
+					if browser == nil && strings.HasPrefix(pluginTool.Name(), "browser.") {
+						browserState, ok := s.browserState(chat)
+						if !ok {
+							browserState = reconstructBrowserState(chat.Messages, tools.DefaultViewTokens)
+						}
+						browser = tools.NewBrowser(browserState)
+					}
+				}
+			}
+		}
 	}
 
 	var thinkingTimeStart *time.Time = nil
