@@ -32,6 +32,8 @@ import { processFiles } from "@/utils/fileValidation";
 import type { ImageData } from "@/types/webview";
 import { PlusIcon, PuzzlePieceIcon } from "@heroicons/react/24/outline";
 import { Link } from "@tanstack/react-router";
+import { API_BASE } from "@/lib/config";
+import { PluginIcon } from "./Plugins";
 
 export type ThinkingLevel = "low" | "medium" | "high";
 
@@ -98,6 +100,95 @@ function ChatForm({
     attachments: [],
     fileErrors: [],
   });
+
+  // @ mention picker: only enabled plugins, never a way to enable one.
+  // The picker lists what /api/plugins says is enabled, and picking
+  // one inserts "@name " as a tag for this turn only. The server
+  // side then registers only the mentioned enabled plugins for that
+  // turn. A typed mention of a non-enabled plugin gets no tools.
+  type MentionPlugin = { name: string; description: string };
+  const [mentionPlugins, setMentionPlugins] = useState<MentionPlugin[]>(
+    [],
+  );
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionLoadedRef = useRef(false);
+
+  const fetchMentionPlugins = useCallback(async () => {
+    if (mentionLoadedRef.current) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/plugins`);
+      if (!response.ok) return;
+      const data = await response.json();
+      const enabled = ((data.plugins || []) as Array<{
+        name: string;
+        description: string;
+        enabled: boolean;
+      }>)
+        .filter((p) => p.enabled)
+        .map((p) => ({ name: p.name, description: p.description }));
+      setMentionPlugins(enabled);
+      mentionLoadedRef.current = true;
+    } catch {
+      // Leave the dropdown empty on a fetch failure, do not break chat.
+    }
+  }, []);
+
+  // Fetch enabled plugins when the message contains @, so the chip
+  // below shows for a pasted or typed mention, not only for a pick.
+  useEffect(() => {
+    if (message.content.includes("@")) {
+      void fetchMentionPlugins();
+    }
+  }, [message.content, fetchMentionPlugins]);
+
+  const filteredMentions = mentionPlugins.filter((p) =>
+    p.name.toLowerCase().startsWith(mentionQuery.toLowerCase()),
+  );
+
+  const detectedMentions = (() => {
+    const found: MentionPlugin[] = [];
+    const re = /(?:^|[\s(])@([a-z0-9][a-z0-9-]*)/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(message.content)) !== null) {
+      const token = match[1];
+      const plugin = mentionPlugins.find(
+        (p) => p.name.toLowerCase() === token.toLowerCase(),
+      );
+      if (plugin && !found.some((f) => f.name === plugin.name)) {
+        found.push(plugin);
+      }
+    }
+    return found;
+  })();
+
+  const selectMention = useCallback(
+    (plugin: MentionPlugin) => {
+      if (mentionStart === null) return;
+      const content = message.content;
+      const cursor =
+        textareaRef.current?.selectionStart ?? content.length;
+      const next =
+        content.slice(0, mentionStart) +
+        `@${plugin.name} ` +
+        content.slice(cursor);
+      setMessage((prev) => ({ ...prev, content: next }));
+      setMentionOpen(false);
+      setMentionStart(null);
+      setMentionQuery("");
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.style.height = "auto";
+          textareaRef.current.style.height =
+            Math.min(textareaRef.current.scrollHeight, 24 * 8) + "px";
+        }
+      }, 0);
+    },
+    [mentionStart, message.content],
+  );
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const compositionEndTimeoutRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -531,6 +622,9 @@ function ChatForm({
       attachments: [],
       fileErrors: [],
     });
+    setMentionOpen(false);
+    setMentionStart(null);
+    setMentionQuery("");
 
     // Reset textarea height and refocus after submit
     setTimeout(() => {
@@ -542,6 +636,37 @@ function ChatForm({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // @ mention dropdown takes keyboard input first, so Enter and
+    // Tab select a plugin instead of submitting or moving focus.
+    if (mentionOpen) {
+      if (e.key === "ArrowDown" && filteredMentions.length > 0) {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % filteredMentions.length);
+        return;
+      }
+      if (e.key === "ArrowUp" && filteredMentions.length > 0) {
+        e.preventDefault();
+        setMentionIndex(
+          (i) => (i - 1 + filteredMentions.length) % filteredMentions.length,
+        );
+        return;
+      }
+      if (
+        (e.key === "Enter" || e.key === "Tab") &&
+        filteredMentions.length > 0
+      ) {
+        e.preventDefault();
+        selectMention(filteredMentions[mentionIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionOpen(false);
+        setMentionStart(null);
+        return;
+      }
+    }
+
     // Handle Enter to submit
     if (e.key === "Enter" && !e.shiftKey && !isEditing) {
       e.preventDefault();
@@ -633,6 +758,34 @@ function ChatForm({
     // Reset height to auto to get the correct scrollHeight, then cap at 8 lines
     e.target.style.height = "auto";
     e.target.style.height = Math.min(e.target.scrollHeight, 24 * 8) + "px";
+
+    // @ mention detection: find the last @ before the cursor, with
+    // only a name fragment after it, and no whitespace in between.
+    const value = e.target.value;
+    const cursor = e.target.selectionStart ?? value.length;
+    const before = value.slice(0, cursor);
+    const at = before.lastIndexOf("@");
+    if (at >= 0) {
+      const prevChar = at === 0 ? " " : before[at - 1];
+      const fragment = before.slice(at + 1);
+      if (
+        (prevChar === " " ||
+          prevChar === "\n" ||
+          prevChar === "(" ||
+          prevChar === "\t") &&
+        /^[a-z0-9-]*$/i.test(fragment)
+      ) {
+        setMentionStart(at);
+        setMentionQuery(fragment);
+        setMentionIndex(0);
+        setMentionOpen(true);
+        void fetchMentionPlugins();
+        return;
+      }
+    }
+    setMentionOpen(false);
+    setMentionStart(null);
+    setMentionQuery("");
   };
 
   const handleFilesUpload = async () => {
@@ -857,6 +1010,22 @@ function ChatForm({
         )}
 
         <div className="relative w-full px-5">
+          {detectedMentions.length > 0 && (
+            <div className="flex flex-wrap gap-2 pb-2">
+              {detectedMentions.map((plugin) => (
+                <span
+                  key={plugin.name}
+                  className="flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+                  title="Enabled plugin, for this turn only"
+                >
+                  <PluginIcon name={plugin.name} size={16} />
+                  Using:{" "}
+                  {plugin.name.charAt(0).toUpperCase() +
+                    plugin.name.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={message.content}
@@ -871,6 +1040,48 @@ function ChatForm({
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
           />
+          {mentionOpen && (
+            <div
+              role="listbox"
+              className="absolute bottom-full left-5 z-50 mb-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+            >
+              {filteredMentions.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-neutral-500">
+                  No enabled plugins match. Enable a plugin in Plugins
+                  first.
+                </p>
+              ) : (
+                filteredMentions.map((plugin, index) => (
+                  <button
+                    key={plugin.name}
+                    type="button"
+                    role="option"
+                    aria-selected={index === mentionIndex}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectMention(plugin);
+                    }}
+                    onMouseEnter={() => setMentionIndex(index)}
+                    className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${
+                      index === mentionIndex
+                        ? "bg-neutral-100 dark:bg-neutral-800"
+                        : ""
+                    }`}
+                  >
+                    <PluginIcon name={plugin.name} size={24} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">
+                        @{plugin.name}
+                      </span>
+                      <span className="block truncate text-xs text-neutral-500">
+                        {plugin.description}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Controls */}

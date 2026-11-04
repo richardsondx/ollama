@@ -21,7 +21,7 @@ type Plugin = {
 
 type Tab = "plugins" | "skills" | "installed";
 
-function PluginIcon({ name, size = 32 }: { name: string; size?: number }) {
+export function PluginIcon({ name, size = 32 }: { name: string; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 48 48" } as const;
   if (name === "browser") {
     return (

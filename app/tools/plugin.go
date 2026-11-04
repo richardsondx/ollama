@@ -216,6 +216,87 @@ func (p *PluginTool) Execute(ctx context.Context, args map[string]any) (any, str
 	return reply, string(content), nil
 }
 
+// MentionedPlugins returns the enabled plugins named with @ in a
+// prompt, in first mention order, without duplicates. A mention is
+// @ followed by a plugin name, for example @browser or @computer,
+// at the start of the prompt or after whitespace or an opening
+// bracket, and ending at the first character that is not a letter,
+// digit, or hyphen. Matching is case insensitive, but the returned
+// names use the spelling from the enabled list, so @Browser still
+// selects browser. An @ token that is part of an email address,
+// for example user@browser, is not a mention, because the @ is
+// preceded by a letter or digit. A mention of a plugin that is not
+// in the enabled list is not returned, so it gets no tools: the
+// Plugins page enable stays the master switch, and a typed mention
+// can never turn a plugin on by itself.
+//
+// Callers use this rule: if the prompt contains any @ mention at
+// all, only the plugins returned here are registered for that turn.
+// If it contains no @ mention, all enabled plugins are registered.
+// That means a prompt that mentions only a non-enabled plugin
+// registers no plugin tools for that turn, instead of silently
+// falling back to every enabled plugin.
+func MentionedPlugins(prompt string, enabled []string) []string {
+	byLower := make(map[string]string, len(enabled))
+	for _, name := range enabled {
+		if _, ok := byLower[strings.ToLower(name)]; !ok {
+			byLower[strings.ToLower(name)] = name
+		}
+	}
+	seen := make(map[string]bool)
+	out := []string{}
+	for _, token := range mentionTokens(prompt) {
+		if canonical, ok := byLower[strings.ToLower(token)]; ok && !seen[canonical] {
+			seen[canonical] = true
+			out = append(out, canonical)
+		}
+	}
+	return out
+}
+
+// HasMention reports whether a prompt contains any @ mention token,
+// whether or not that token names an enabled plugin. Callers use
+// this to decide between the mentioned-only rule and the
+// all-enabled rule in MentionedPlugins.
+func HasMention(prompt string) bool {
+	return len(mentionTokens(prompt)) > 0
+}
+
+// mentionTokens extracts @ tokens from a prompt, in order, without
+// duplicates removed, so callers can decide on duplicates. A token
+// is the run of letters, digits, and hyphens after an @ that is at
+// the start of the prompt or preceded by whitespace, an opening
+// bracket, a quote, or a colon, and not by a letter or digit.
+func mentionTokens(prompt string) []string {
+	tokens := []string{}
+	runes := []rune(prompt)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] != '@' {
+			continue
+		}
+		if i > 0 {
+			prev := runes[i-1]
+			if prev >= 'a' && prev <= 'z' || prev >= 'A' && prev <= 'Z' || prev >= '0' && prev <= '9' {
+				continue
+			}
+		}
+		j := i + 1
+		for j < len(runes) {
+			r := runes[j]
+			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' {
+				j++
+			} else {
+				break
+			}
+		}
+		if j > i+1 {
+			tokens = append(tokens, string(runes[i+1:j]))
+		}
+		i = j - 1
+	}
+	return tokens
+}
+
 // pluginToolsResponse is the shape of GET /api/tools from both the
 // fork server and the seed server.
 type pluginToolsResponse struct {

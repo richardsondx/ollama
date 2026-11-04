@@ -127,3 +127,42 @@ func TestLoadPluginToolsSkipsMalformedEntries(t *testing.T) {
 		t.Fatalf("expected only the one well-formed tool, got %d tools", len(loaded))
 	}
 }
+
+func TestMentionedPlugins(t *testing.T) {
+	enabled := []string{"browser", "computer"}
+	cases := []struct {
+		prompt string
+		want   []string
+	}{
+		{"@browser list the tools", []string{"browser"}},
+		{"@Browser list the tools", []string{"browser"}},
+		{"use @computer and @browser", []string{"computer", "browser"}},
+		{"@browser, then @browser again", []string{"browser"}},
+		{"no mention here", nil},
+		{"email user@browser is not a mention", nil},
+		{"@skill-creator is not enabled here", nil},
+	}
+	for _, c := range cases {
+		got := MentionedPlugins(c.prompt, enabled)
+		if len(got) != len(c.want) {
+			t.Fatalf("MentionedPlugins(%q) = %v, want %v", c.prompt, got, c.want)
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Fatalf("MentionedPlugins(%q) = %v, want %v", c.prompt, got, c.want)
+			}
+		}
+	}
+	if got := MentionedPlugins("@computer use it", []string{"browser"}); len(got) != 0 {
+		t.Fatalf("non-enabled mention must return no plugins, got %v", got)
+	}
+	if !HasMention("@browser hello") {
+		t.Fatal("HasMention should be true for @browser")
+	}
+	if HasMention("no mention") {
+		t.Fatal("HasMention should be false with no @ token")
+	}
+	if HasMention("email user@browser") {
+		t.Fatal("HasMention should be false for an email address")
+	}
+}
