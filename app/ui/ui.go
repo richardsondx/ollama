@@ -1203,14 +1203,31 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 						// We still persist tool msg with content below.
 						// (No browser state update needed for standalone.)
 					} else if strings.HasPrefix(toolCall.Function.Name, "browser") {
-						stateBytes, err := json.Marshal(browser.State())
-						if err != nil {
-							return fmt.Errorf("failed to marshal browser state: %w", err)
+						// Built-in browser tools (browser.search, browser.open,
+						// browser.find) keep the state-only flow: the readable
+						// content above is what the model sees. Plugin browser
+						// tools (browser.webmcp.*, with a second dot) also get
+						// their result added to the tool message below, or the
+						// model never sees the result and the turn stalls after
+						// the raw tool call.
+						if browser != nil {
+							stateBytes, err := json.Marshal(browser.State())
+							if err != nil {
+								return fmt.Errorf("failed to marshal browser state: %w", err)
+							}
+							if err := s.Store.UpdateChatBrowserState(chat.ID, json.RawMessage(stateBytes)); err != nil {
+								return fmt.Errorf("failed to persist browser state to chat: %w", err)
+							}
 						}
-						if err := s.Store.UpdateChatBrowserState(chat.ID, json.RawMessage(stateBytes)); err != nil {
-							return fmt.Errorf("failed to persist browser state to chat: %w", err)
+						if strings.HasPrefix(toolCall.Function.Name, "browser.webmcp.") {
+							var err error
+							tr, err = json.Marshal(result)
+							if err != nil {
+								return fmt.Errorf("failed to marshal tool result: %w", err)
+							}
 						}
-						// tool result is not added to the tool message for the browser tool
+						// tool result is not added to the tool message for
+						// the built-in browser tools, only for plugin ones
 					} else {
 						var err error
 						tr, err = json.Marshal(result)
