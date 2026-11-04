@@ -17,7 +17,18 @@ func NewHandler(reg *Registry) http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		// Re-discover on list, so a plugin added after start
+		// shows up without a restart.
+		reg.Refresh()
 		writeJSON(w, map[string]interface{}{"plugins": reg.List(), "errors": reg.Errors()})
+	})
+	mux.HandleFunc("/api/plugins/refresh", func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		reg.Refresh()
+		writeJSON(w, map[string]interface{}{"plugins": reg.List()})
 	})
 	mux.HandleFunc("/api/plugins/skills", func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
@@ -35,6 +46,7 @@ func NewHandler(reg *Registry) http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		reg.Refresh()
 		writeJSON(w, map[string]interface{}{"tools": reg.EnabledTools()})
 	})
 	mux.HandleFunc("/api/plugins/", func(w http.ResponseWriter, req *http.Request) {

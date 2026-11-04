@@ -132,3 +132,47 @@ func TestHandlerListsAndEnables(t *testing.T) {
 		t.Fatalf("unexpected tools after enable: %+v", tools.Tools)
 	}
 }
+
+func TestPersistenceSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	writePlugin(t, root, "browser")
+	state := filepath.Join(t.TempDir(), "state.json")
+	first := NewRegistryWithState(root, state)
+	if !first.Enable("browser") {
+		t.Fatalf("enable should succeed")
+	}
+	// A new registry, as after a restart, must remember the enable.
+	second := NewRegistryWithState(root, state)
+	if !second.IsEnabled("browser") {
+		t.Fatalf("enabled state was not restored from the state file")
+	}
+	if len(second.EnabledTools()) != 1 {
+		t.Fatalf("restored registry should expose 1 tool, got %d", len(second.EnabledTools()))
+	}
+	second.Disable("browser")
+	third := NewRegistryWithState(root, state)
+	if third.IsEnabled("browser") {
+		t.Fatalf("disable should be remembered too")
+	}
+}
+
+func TestRefreshPicksUpNewPlugin(t *testing.T) {
+	root := t.TempDir()
+	writePlugin(t, root, "browser")
+	reg := NewRegistry(root)
+	if len(reg.List()) != 1 {
+		t.Fatalf("expected 1 plugin at start, got %d", len(reg.List()))
+	}
+	writePlugin(t, root, "computer")
+	reg.Refresh()
+	if len(reg.List()) != 2 {
+		t.Fatalf("expected 2 plugins after refresh, got %d", len(reg.List()))
+	}
+	// Refresh must keep enable state for plugins that still exist.
+	reg.Enable("browser")
+	writePlugin(t, root, "third")
+	reg.Refresh()
+	if !reg.IsEnabled("browser") {
+		t.Fatalf("refresh must keep enable state for existing plugins")
+	}
+}

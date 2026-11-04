@@ -10,18 +10,60 @@ import (
 // Registry holds discovered plugins and which ones are enabled.
 // A disabled plugin exposes no tools.
 type Registry struct {
-	mu      sync.Mutex
-	Root    string
-	plugins map[string]Plugin
-	errors  map[string]string
-	enabled map[string]bool
+	mu        sync.Mutex
+	Root      string
+	statePath string
+	plugins   map[string]Plugin
+	errors    map[string]string
+	enabled   map[string]bool
 }
 
 // NewRegistry discovers plugins under root. It does not fail on a
 // bad plugin; Discover reports those in Errors.
 func NewRegistry(root string) *Registry {
+	return NewRegistryWithState(root, "")
+}
+
+// NewRegistryWithState is NewRegistry, plus a JSON state file
+// that remembers which plugins were enabled, so enable state
+// survives a restart. An empty statePath means in-memory only.
+// A state file that lists a plugin that no longer exists is
+// ignored, it does not create a plugin.
+func NewRegistryWithState(root, statePath string) *Registry {
 	plugins, errs := Discover(root)
-	return &Registry{Root: root, plugins: plugins, errors: errs, enabled: map[string]bool{}}
+	r := &Registry{Root: root, statePath: statePath, plugins: plugins, errors: errs, enabled: map[string]bool{}}
+	if statePath != "" {
+		if data, err := os.ReadFile(statePath); err == nil {
+			var state struct {
+				Enabled []string `json:"enabled"`
+			}
+			if err := json.Unmarshal(data, &state); err == nil {
+				for _, name := range state.Enabled {
+					if _, ok := plugins[name]; ok {
+						r.enabled[name] = true
+					}
+				}
+			}
+		}
+	}
+	return r
+}
+
+// Refresh re-discovers plugins from disk, so a plugin folder
+// added after the server started shows up without a restart.
+// Enabled state is kept for plugins that still exist, and
+// dropped for plugins that were removed.
+func (r *Registry) Refresh() {
+	plugins, errs := Discover(r.Root)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.plugins = plugins
+	r.errors = errs
+	for name := range r.enabled {
+		if _, ok := plugins[name]; !ok {
+			delete(r.enabled, name)
+		}
+	}
 }
 
 // List returns all discovered plugins, with Enabled set from state.
@@ -49,24 +91,34 @@ func (r *Registry) Errors() map[string]string {
 }
 
 // Enable turns a plugin on. It returns false for an unknown plugin.
+// When a state file is set, the change is saved right away.
 func (r *Registry) Enable(name string) bool {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if _, ok := r.plugins[name]; !ok {
+		r.mu.Unlock()
 		return false
 	}
 	r.enabled[name] = true
+	r.mu.Unlock()
+	if r.statePath != "" {
+		_ = r.SaveState(r.statePath)
+	}
 	return true
 }
 
 // Disable turns a plugin off. It returns false for an unknown plugin.
+// When a state file is set, the change is saved right away.
 func (r *Registry) Disable(name string) bool {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if _, ok := r.plugins[name]; !ok {
+		r.mu.Unlock()
 		return false
 	}
 	delete(r.enabled, name)
+	r.mu.Unlock()
+	if r.statePath != "" {
+		_ = r.SaveState(r.statePath)
+	}
 	return true
 }
 
@@ -134,8 +186,7 @@ func (r *Registry) FindTool(pluginName, toolName string) (Plugin, Tool, bool) {
 	return Plugin{}, Tool{}, false
 }
 
-// SaveState writes enabled plugin names to a JSON file. It is
-// best effort for the proof slice; the server does not depend on it.
+// SaveState writes enabled plugin names to a JSON file.
 func (r *Registry) SaveState(path string) error {
 	r.mu.Lock()
 	names := make([]string, 0, len(r.enabled))

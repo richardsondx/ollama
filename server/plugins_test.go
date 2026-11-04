@@ -30,6 +30,7 @@ func TestPluginRoutesViaGenerateRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("OLLAMA_PLUGINS_DIR", root)
+	t.Setenv("OLLAMA_PLUGIN_STATE", filepath.Join(t.TempDir(), "state.json"))
 	t.Setenv("OLLAMA_MODELS", t.TempDir())
 
 	s := &Server{}
@@ -90,6 +91,7 @@ func TestPluginHandlerMount(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("OLLAMA_PLUGINS_DIR", root)
+	t.Setenv("OLLAMA_PLUGIN_STATE", filepath.Join(t.TempDir(), "state.json"))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/plugins", nil)
 	rec := httptest.NewRecorder()

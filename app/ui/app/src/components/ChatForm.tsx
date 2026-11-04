@@ -30,7 +30,8 @@ import { ThinkButton } from "./ThinkButton";
 import { ErrorMessage } from "./ErrorMessage";
 import { processFiles } from "@/utils/fileValidation";
 import type { ImageData } from "@/types/webview";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PuzzlePieceIcon } from "@heroicons/react/24/outline";
+import { Link } from "@tanstack/react-router";
 
 export type ThinkingLevel = "low" | "medium" | "high";
 
@@ -925,6 +926,13 @@ function ChatForm({
                     />
                   </>
                 )}
+                <Link
+                  to="/plugins"
+                  title="Plugins"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-600"
+                >
+                  <PuzzlePieceIcon className="h-5 w-5 stroke-current" />
+                </Link>
                 <WebSearchButton
                   ref={webSearchButtonRef}
                   isVisible={supportsWebSearch && cloudDisabled === false}
