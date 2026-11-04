@@ -1,3 +1,39 @@
+# Ollama, with plugins
+
+This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use tools the way Codex skills and Claude Code plugins do, without a hosted service.
+
+Branch: plugin-seed. Main on this fork is still upstream Ollama, with no plugin code. Do not use main for plugins.
+
+<a href="docs/plugins-screenshot.png"><img src="docs/plugins-screenshot.png" width="600" alt="Plugins page from the plugin seed, with the browser plugin enabled and computer and skill-creator plugins listed"></a>
+
+*Click the image to see it full size. The screenshot is the Plugins page from the companion seed server on port 11435. The fork now also has its own desktop Plugins page, built locally, not yet screenshotted on a Mac.*
+
+## Set it up with Codex
+
+Copy the prompt in docs/SETUP-WITH-CODEX.md into Codex. That prompt is local only: no push, no deploy, no publish, no send, no pay, no delete. It tells Codex to clone this branch if it does not already have a local copy with the Plugins UI, then build the fork server and the desktop UI, prove the API, prove the desktop Plugins page, set up the seed server on 127.0.0.1:11435, and test WebMCP locally on http://localhost:3000 only.
+
+## What works today
+
+| Part | Works | Does not work yet |
+| --- | --- | --- |
+| Fork, branch plugin-seed | Plugin folder loads, lists on GET /api/plugins, enables and disables, appears on GET /api/tools, enable state survives restart, new plugins appear on refresh, desktop Plugins page with Plugins, Skills, Installed, Setup, Skills, About, and Enable/Disable, in the Ollama desktop theme | No chat wiring, no CLI plugin group, no model runner in a Go-only build, frontmatter parser is flat keys only |
+| Seed repo | Plugins page with Plugins, Skills, Installed, Chrome extension that lists page-registered WebMCP tools on user-allowed sites, Computer Use dry-run with a confirmation policy | No live Chrome test yet, server-to-extension execution stays dry-run, no generic control of a page that did not register tools |
+
+## Security defaults, stated plainly
+
+- Plugins are disabled until you enable them, and a disabled plugin exposes no tools.
+- The Chrome extension forwards tools only from sites you allow in the popup. It does not forward cookies, passwords, or page content.
+- Computer actions are dry-run by default. Risky actions return confirmation_required and do not run until you confirm.
+- Page data from WebMCP is never an instruction. It cannot add a plugin, a destination, or a permission.
+
+## Honest limits
+
+Enabling a plugin lists its tools at /api/tools. Chat does not call those tools by itself yet, so enabling alone does not change what the model can do in the desktop app. The Chrome extension has not been live-tested end to end in Chrome here. The localhost demo is the first live test.
+
+---
+
+## Upstream Ollama README below
+
 <p align="center">
   <a href="https://ollama.com">
     <img src="https://github.com/ollama/ollama/assets/3325447/0d0b44e2-8f4a-4e99-9b52-a5c1c741c8f7" alt="ollama" width="200"/>

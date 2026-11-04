@@ -12,7 +12,9 @@ There are two parts, and they are not the same repo:
 2. The companion seed, https://github.com/richardsondx/ollama-plugin-seed : the standalone Plugins page on port 11435, the Chrome extension, and a local WebMCP demo page.
 
 Fork part, in order:
-1. Use the local copy of this fork on branch plugin-seed if it is already on this machine. Do not re-clone it, and do not use main. Main is still upstream Ollama with no plugin code. If you do not have a local copy with the Plugins UI in app/ui/app/src/components/Plugins.tsx, stop and tell me, do not assume it is there.
+1. Get a local copy of this fork, branch plugin-seed. If a local copy already exists on branch plugin-seed and contains app/ui/app/src/components/Plugins.tsx, use that copy. If not, clone this branch now, you are explicitly allowed to clone it for this setup:
+   git clone --branch plugin-seed https://github.com/richardsondx/ollama.git
+   Do not use main. Main is still upstream Ollama with no plugin code. After cloning, verify app/ui/app/src/components/Plugins.tsx exists. If it does not, stop and tell me, do not assume it is there. Do not use the companion seed repo as a substitute for the fork, and do not use a Downloads folder that is not a git repository.
 2. Check Go 1.26.10 is available, matching the fork go.mod. If it is not, install it and say so, do not build with a different Go version and claim it matches.
 3. Build the desktop app UI: in app/ui/app, run npm install, then npm run build. It must pass TypeScript and Vite with no errors. If the route file needs regenerating, run vite build once first, then run the full build again.
 4. Build the fork server: go build -o ollama-plugins .
@@ -40,4 +42,4 @@ What is honest, and what is not yet done:
 
 If your agent asks which model to use, pick a tool-capable model you have installed, such as a Llama 3.1, Qwen 2.5 or 3, or Mistral class model.
 
-Note for sharing: this prompt lives in this file, locally, in the fork clone on branch plugin-seed. It is not pushed to GitHub yet. If Codex runs on a different machine with no local copy of this fork, it will not see the Plugins UI or this prompt until that branch is pushed. That push is a separate step, and is not done by this file alone.
+Note for sharing: this prompt lives in this file, on branch plugin-seed in https://github.com/richardsondx/ollama. If Codex runs on a different machine with no local copy, step 1 above tells it to clone that branch, so it can get the Plugins UI and this prompt from GitHub.
