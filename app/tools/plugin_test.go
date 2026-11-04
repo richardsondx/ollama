@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // testExecutor is a fake seed server. It answers by tool name so each
@@ -36,6 +37,23 @@ func TestPluginToolNameIsDottedPair(t *testing.T) {
 	}
 	if got := tool.Name(); got != "browser.webmcp.list_tools" {
 		t.Fatalf("Name() = %q, want %q", got, "browser.webmcp.list_tools")
+	}
+}
+
+func TestPluginToolBrowserTimeoutIsLonger(t *testing.T) {
+	browser, err := NewPluginTool("browser", "webmcp.execute_tool", "Execute a WebMCP tool.", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if browser.client.Timeout != 30*time.Second {
+		t.Fatalf("browser timeout = %v, want 30s", browser.client.Timeout)
+	}
+	other, err := NewPluginTool("computer", "click", "Click.", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other.client.Timeout != 10*time.Second {
+		t.Fatalf("computer timeout = %v, want 10s", other.client.Timeout)
 	}
 }
 

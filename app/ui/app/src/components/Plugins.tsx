@@ -80,6 +80,52 @@ async function fetchPlugins(): Promise<Plugin[]> {
   return (data.plugins || []) as Plugin[];
 }
 
+type ModelCheck = {
+  name: string;
+  status: "works" | "wont" | "unknown";
+};
+
+async function checkOneModel(name: string): Promise<ModelCheck> {
+  try {
+    const response = await fetch(`${API_BASE}/api/show`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: name }),
+    });
+    if (!response.ok) {
+      return { name, status: "unknown" };
+    }
+    const data = await response.json();
+    const capabilities: string[] = Array.isArray(data.capabilities)
+      ? data.capabilities
+      : [];
+    return {
+      name,
+      status: capabilities.includes("tools") ? "works" : "wont",
+    };
+  } catch {
+    return { name, status: "unknown" };
+  }
+}
+
+async function fetchModelChecks(): Promise<ModelCheck[]> {
+  const response = await fetch(`${API_BASE}/api/tags`);
+  if (!response.ok) {
+    throw new Error(`Model list answered ${response.status}`);
+  }
+  const data = await response.json();
+  const models: { name: string }[] = Array.isArray(data.models)
+    ? data.models
+    : [];
+  const checks = await Promise.all(
+    models
+      .map((m) => m.name)
+      .filter((name) => typeof name === "string" && name.length > 0)
+      .map((name) => checkOneModel(name)),
+  );
+  return checks;
+}
+
 export default function Plugins() {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +134,9 @@ export default function Plugins() {
   const [query, setQuery] = useState("");
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [modelChecks, setModelChecks] = useState<ModelCheck[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsError, setModelsError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -108,6 +157,34 @@ export default function Plugins() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadModels = async () => {
+      setModelsLoading(true);
+      setModelsError(null);
+      try {
+        const checks = await fetchModelChecks();
+        if (!cancelled) {
+          setModelChecks(checks);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setModelsError(
+            err instanceof Error ? err.message : "Could not check models",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setModelsLoading(false);
+        }
+      }
+    };
+    void loadModels();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const visible = useMemo(() => {
@@ -297,10 +374,94 @@ export default function Plugins() {
             <div className="mt-6 rounded-2xl bg-neutral-100 px-5 py-4 dark:bg-neutral-800">
               <p className="text-sm font-medium">Try it in chat</p>
               <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
-                Enabling a plugin lists its tools at /api/tools. Chat does not
-                call those tools yet, so enabling alone does not change what
-                the model can do in this app. That chat wiring is the next
-                step, not part of this page.
+                Enabling a plugin lists its tools at /api/tools, and chat now
+                calls those tools for a tool-capable model. Type @ in chat to
+                pick one enabled plugin for that turn.
+              </p>
+            </div>
+
+            <div className="mt-6 rounded-2xl bg-neutral-100 px-5 py-4 dark:bg-neutral-800">
+              <p className="text-sm font-medium">Model compatibility</p>
+              <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                This plugin needs a model that can call tools. The lists
+                below are checked from your installed models right now, not
+                from a fixed list: a model is listed as working only when
+                its own capabilities include tools.
+              </p>
+              {modelsLoading && (
+                <p className="mt-3 text-sm text-neutral-500">
+                  Checking models…
+                </p>
+              )}
+              {!modelsLoading && modelsError && (
+                <p className="mt-3 text-sm text-neutral-500">
+                  Models could not be checked. The plugin list, enable, and
+                  disable still work, and chat is not affected.
+                </p>
+              )}
+              {!modelsLoading && !modelsError && modelChecks.length === 0 && (
+                <p className="mt-3 text-sm text-neutral-500">
+                  No models are installed yet, so there is nothing to check.
+                </p>
+              )}
+              {!modelsLoading && !modelsError && modelChecks.length > 0 && (
+                <>
+                  <p className="mt-3 text-sm font-medium">
+                    Works with plugins
+                  </p>
+                  {modelChecks.filter((m) => m.status === "works").length ===
+                  0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {modelChecks
+                        .filter((m) => m.status === "works")
+                        .map((m) => (
+                          <li key={m.name} className="text-sm">
+                            {m.name}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                  <p className="mt-3 text-sm font-medium">
+                    Won&apos;t work with plugins
+                  </p>
+                  {modelChecks.filter((m) => m.status === "wont").length ===
+                  0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {modelChecks
+                        .filter((m) => m.status === "wont")
+                        .map((m) => (
+                          <li key={m.name} className="text-sm">
+                            {m.name}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                  <p className="mt-3 text-sm font-medium">Unknown</p>
+                  {modelChecks.filter((m) => m.status === "unknown")
+                    .length === 0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {modelChecks
+                        .filter((m) => m.status === "unknown")
+                        .map((m) => (
+                          <li key={m.name} className="text-sm">
+                            {m.name}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </>
+              )}
+              <p className="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                Works means the model can call tools, it does not guarantee
+                it will never invent a tool, so still test first by asking
+                for list_tools, and if it names a tool list_tools did not
+                return, that tool does not exist.
               </p>
             </div>
 

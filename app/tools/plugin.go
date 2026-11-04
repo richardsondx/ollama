@@ -43,7 +43,21 @@ const (
 	// local, so a reply that takes longer than this is an error, not a
 	// reason to keep chat waiting.
 	pluginExecuteTimeout = 10 * time.Second
+	// pluginBrowserExecuteTimeout caps one browser tool execution.
+	// The seed server waits up to 25 seconds for a Chrome extension
+	// result, so a 10 second cap in chat would cut a real Chrome
+	// execution short. Browser tools get 30 seconds, other plugin
+	// tools keep the 10 second cap.
+	pluginBrowserExecuteTimeout = 30 * time.Second
 )
+
+// pluginTimeoutFor returns the execution timeout for one plugin.
+func pluginTimeoutFor(plugin string) time.Duration {
+	if plugin == "browser" {
+		return pluginBrowserExecuteTimeout
+	}
+	return pluginExecuteTimeout
+}
 
 // PluginToolsURLFromEnv returns the tools list URL, overridable only
 // to a local URL through OLLAMA_PLUGIN_TOOLS_URL. An invalid or
@@ -130,7 +144,7 @@ func NewPluginTool(plugin, tool, description string, schema map[string]any, exec
 		description: description,
 		schema:      schema,
 		executorURL: strings.TrimRight(executorURL, "/"),
-		client:      &http.Client{Timeout: pluginExecuteTimeout},
+		client:      &http.Client{Timeout: pluginTimeoutFor(plugin)},
 	}, nil
 }
 
@@ -179,7 +193,7 @@ func (p *PluginTool) Execute(ctx context.Context, args map[string]any) (any, str
 	req.Header.Set("Content-Type", "application/json")
 	client := p.client
 	if client == nil {
-		client = &http.Client{Timeout: pluginExecuteTimeout}
+		client = &http.Client{Timeout: pluginTimeoutFor(p.Plugin)}
 	}
 	resp, err := client.Do(req)
 	if err != nil {
