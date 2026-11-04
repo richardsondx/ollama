@@ -1485,7 +1485,7 @@ func hasLocalModel(inventory []LaunchModel, name string) bool {
 
 func (c *launcherClient) resolveRunModels(ctx context.Context, integration string, models []string) []LaunchModel {
 	recommendations := c.recommendations(ctx)
-	if integration == "codex" {
+	if integration == "codex" || integration == "kimi" {
 		// Codex reads its /model choices from the generated catalog. Include
 		// installed tool-capable models as well as the requested starting model.
 		if inventory, err := c.modelInventory().Load(ctx); err == nil {
