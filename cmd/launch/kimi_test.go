@@ -334,11 +334,19 @@ exit 0
 	if err := os.WriteFile(filepath.Join(tmpDir, "kimi"), []byte(script), 0o755); err != nil {
 		t.Fatalf("failed to write fake kimi: %v", err)
 	}
+	writeFakeBinary(t, tmpDir, "curl")
+	writeFakeBinary(t, tmpDir, "bash")
 	t.Setenv("PATH", tmpDir)
 
 	srv := httptest.NewServer(http.NotFoundHandler())
 	defer srv.Close()
 	t.Setenv("OLLAMA_HOST", srv.URL)
+
+	oldConfirm := DefaultConfirmPrompt
+	DefaultConfirmPrompt = func(prompt string, options ConfirmOptions) (bool, error) {
+		return false, nil
+	}
+	t.Cleanup(func() { DefaultConfirmPrompt = oldConfirm })
 
 	k := &Kimi{}
 	if err := k.Run("llama3.2", nil, []string{"--quiet", "--print"}); err != nil {
@@ -485,7 +493,7 @@ exit 0
 		if err != nil {
 			t.Fatalf("failed to read install log: %v", err)
 		}
-		if !strings.Contains(string(logData), "https://code.kimi.com/install.sh") {
+		if !strings.Contains(string(logData), "https://code.kimi.com/kimi-code/install.sh") {
 			t.Fatalf("expected install.sh command in log, got:\n%s", string(logData))
 		}
 	})

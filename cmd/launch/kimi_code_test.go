@@ -587,3 +587,94 @@ func TestFindKimiBinary_PrefersKimiCodeInstall(t *testing.T) {
 		t.Fatalf("findKimiBinary() = %q, want %q", got, kimiCodeBin)
 	}
 }
+
+func TestEnsureKimiInstalled_FallsBackToLegacyCLIOnDecline(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell fake binaries")
+	}
+	oldGOOS := kimiGOOS
+	kimiGOOS = "linux"
+	t.Cleanup(func() { kimiGOOS = oldGOOS })
+
+	setTestHome(t, t.TempDir())
+	binDir := t.TempDir()
+	t.Setenv("PATH", binDir)
+	writeFakeBinary(t, binDir, "curl")
+	writeFakeBinary(t, binDir, "bash")
+	legacyPath := filepath.Join(binDir, "kimi")
+	if err := os.WriteFile(legacyPath, []byte("#!/bin/sh\necho 'kimi, version 1.50.0'\necho 'kimi-cli is no longer maintained.'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var gotPrompt string
+	oldConfirm := DefaultConfirmPrompt
+	DefaultConfirmPrompt = func(prompt string, options ConfirmOptions) (bool, error) {
+		gotPrompt = prompt
+		return false, nil
+	}
+	t.Cleanup(func() { DefaultConfirmPrompt = oldConfirm })
+
+	got, err := ensureKimiInstalled()
+	if err != nil {
+		t.Fatalf("ensureKimiInstalled() error = %v", err)
+	}
+	if got != legacyPath {
+		t.Fatalf("ensureKimiInstalled() = %q, want legacy %q", got, legacyPath)
+	}
+	if !strings.Contains(gotPrompt, "kimi-cli 1.50.0 is no longer maintained") {
+		t.Fatalf("prompt = %q, want archived kimi-cli prompt", gotPrompt)
+	}
+}
+
+func TestKimiRun_UsesLegacyCLIWhenUpgradeDeclined(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell fake binary")
+	}
+
+	tmpDir := t.TempDir()
+	setTestHome(t, tmpDir)
+	logPath := filepath.Join(tmpDir, "kimi-args.log")
+	script := fmt.Sprintf(`#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "kimi, version 1.53.1"
+  exit 0
+fi
+for arg in "$@"; do
+  printf "%%s\n" "$arg" >> %q
+done
+exit 0
+`, logPath)
+	if err := os.WriteFile(filepath.Join(tmpDir, "kimi"), []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write fake kimi: %v", err)
+	}
+	writeFakeBinary(t, tmpDir, "curl")
+	writeFakeBinary(t, tmpDir, "bash")
+	t.Setenv("PATH", tmpDir)
+	t.Setenv("KIMI_CODE_HOME", "")
+
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	t.Setenv("OLLAMA_HOST", srv.URL)
+
+	oldConfirm := DefaultConfirmPrompt
+	DefaultConfirmPrompt = func(prompt string, options ConfirmOptions) (bool, error) {
+		return false, nil
+	}
+	t.Cleanup(func() { DefaultConfirmPrompt = oldConfirm })
+
+	if err := (&Kimi{}).Run("llama3.2", nil, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read args log: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if lines[0] != "--config" {
+		t.Fatalf("first arg = %q, want legacy --config", lines[0])
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, ".kimi-code", "config.toml")); !os.IsNotExist(err) {
+		t.Fatalf("kimi code config should not be written on the legacy path")
+	}
+}

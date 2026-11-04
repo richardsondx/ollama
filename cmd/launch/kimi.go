@@ -426,19 +426,34 @@ func resolveKimiMaxContextSize(model string) int {
 }
 
 func ensureKimiInstalled() (string, error) {
-	if path, err := findKimiBinary(); err == nil {
-		return path, nil
+	existing, findErr := findKimiBinary()
+	version := ""
+	if findErr == nil {
+		var legacy bool
+		version, legacy = kimiLegacyCLIVersion(existing)
+		if !legacy {
+			return existing, nil
+		}
+	}
+
+	prompt := "Kimi is not installed. Install now?"
+	if existing != "" {
+		prompt = fmt.Sprintf("kimi-cli %s is no longer maintained and has been replaced by Kimi Code. Install Kimi Code now?", version)
 	}
 
 	if err := checkKimiInstallerDependencies(); err != nil {
 		return "", err
 	}
 
-	ok, err := ConfirmPrompt("Kimi is not installed. Install now?")
+	ok, err := ConfirmPrompt(prompt)
 	if err != nil {
 		return "", err
 	}
 	if !ok {
+		if existing != "" {
+			fmt.Fprintf(os.Stderr, "%sContinuing with kimi-cli %s; re-run with --yes to install Kimi Code%s\n\n", ansiYellow, version, ansiReset)
+			return existing, nil
+		}
 		return "", fmt.Errorf("kimi installation cancelled")
 	}
 
@@ -494,12 +509,12 @@ func kimiInstallerCommand(goos string) (string, []string, error) {
 			"-ExecutionPolicy",
 			"Bypass",
 			"-Command",
-			"Invoke-RestMethod https://code.kimi.com/install.ps1 | Invoke-Expression",
+			"Invoke-RestMethod https://code.kimi.com/kimi-code/install.ps1 | Invoke-Expression",
 		}, nil
 	case "darwin", "linux":
 		return "bash", []string{
 			"-c",
-			"curl -LsSf https://code.kimi.com/install.sh | bash",
+			"curl -LsSf https://code.kimi.com/kimi-code/install.sh | bash",
 		}, nil
 	default:
 		return "", nil, fmt.Errorf("unsupported platform for kimi install: %s", goos)
