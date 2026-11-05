@@ -77,7 +77,7 @@
     },
     {
       "name": "type_text",
-      "description": "Type text into a Mac app. Typing alone does not submit anything. To submit a typed URL or form field, call press_key with key Enter after typing. Sensitive data transmission requires pre-approval or confirmation, and the text is never logged.",
+      "description": "Type text into a Mac app. Typing alone does not submit anything. To submit a typed URL or form field, call press_key with key Enter after typing. Press Enter once only, then read the state in the press_key result and answer in one sentence. Do not press Enter again for the same URL. Sensitive data transmission requires pre-approval or confirmation, and the text is never logged.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "press_key",
-      "description": "Press one key in a Mac app, after activating it. Use Enter to submit a typed URL or form field. Allowed keys are Enter, Escape, Tab, Space, ArrowUp, ArrowDown, ArrowLeft, and ArrowRight.",
+      "description": "Press one key in a Mac app, after activating it. Use Enter to submit a typed URL or form field. Press Enter once only, then read the state in the result, then answer in one sentence. Do not press Enter again for the same URL, and do not call get_state or get_app_state again after that state is already in the result. Allowed keys are Enter, Escape, Tab, Space, ArrowUp, ArrowDown, ArrowLeft, and ArrowRight.",
       "parameters": {
         "type": "object",
         "properties": {
