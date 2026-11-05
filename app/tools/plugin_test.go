@@ -146,6 +146,92 @@ func TestLoadPluginToolsSkipsMalformedEntries(t *testing.T) {
 	}
 }
 
+func TestRegistryBareNameResolution(t *testing.T) {
+	mustTool := func(plugin, tool string) *PluginTool {
+		t.Helper()
+		built, err := NewPluginTool(plugin, tool, "Test.", nil, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return built
+	}
+
+	// Only cua tools registered, as in an @cua turn.
+	cuaOnly := NewRegistry()
+	cuaOnly.Register(mustTool("cua", "create_tab"))
+	cuaOnly.Register(mustTool("cua", "get_state"))
+	if tool, ok := cuaOnly.Get("create_tab"); !ok || tool.Name() != "cua.create_tab" {
+		t.Fatalf("bare create_tab should resolve to cua.create_tab, got ok=%v tool=%v", ok, tool)
+	}
+	if tool, ok := cuaOnly.Get("cua.create_tab"); !ok || tool.Name() != "cua.create_tab" {
+		t.Fatalf("exact cua.create_tab must still work, got ok=%v tool=%v", ok, tool)
+	}
+
+	// Only computer tools registered, as in an @computer turn.
+	computerOnly := NewRegistry()
+	computerOnly.Register(mustTool("computer", "list_apps"))
+	if tool, ok := computerOnly.Get("list_apps"); !ok || tool.Name() != "computer.list_apps" {
+		t.Fatalf("bare list_apps should resolve to computer.list_apps, got ok=%v tool=%v", ok, tool)
+	}
+
+	// Browser tools keep their dotted middle part.
+	browserOnly := NewRegistry()
+	browserOnly.Register(mustTool("browser", "webmcp.list_tools"))
+	if tool, ok := browserOnly.Get("webmcp.list_tools"); !ok || tool.Name() != "browser.webmcp.list_tools" {
+		t.Fatalf("webmcp.list_tools should resolve to browser.webmcp.list_tools, got ok=%v tool=%v", ok, tool)
+	}
+	if tool, ok := browserOnly.Get("list_tools"); !ok || tool.Name() != "browser.webmcp.list_tools" {
+		t.Fatalf("bare list_tools should resolve to browser.webmcp.list_tools, got ok=%v tool=%v", ok, tool)
+	}
+
+	// Both click tools registered, as when no @ mention is used:
+	// bare click must error naming both and execute neither.
+	both := NewRegistry()
+	both.Register(mustTool("cua", "click"))
+	both.Register(mustTool("computer", "click"))
+	if tool, ok := both.Get("click"); ok || tool != nil {
+		t.Fatalf("ambiguous bare click must not resolve, got ok=%v tool=%v", ok, tool)
+	}
+	if _, _, err := both.Execute(t.Context(), "click", map[string]any{}); err == nil {
+		t.Fatal("ambiguous bare click must error, got success")
+	} else if !strings.Contains(err.Error(), "cua.click") || !strings.Contains(err.Error(), "computer.click") {
+		t.Fatalf("ambiguous error must name both candidates, got: %v", err)
+	}
+
+	// Unknown names keep the old error.
+	if _, _, err := cuaOnly.Execute(t.Context(), "no_such_tool", map[string]any{}); err == nil || !strings.Contains(err.Error(), "unknown tool: no_such_tool") {
+		t.Fatalf("unknown tool must keep its error, got: %v", err)
+	}
+}
+
+func TestParseTextJSONToolCall(t *testing.T) {
+	call, ok := ParseTextJSONToolCall(`{"name": "cua.create_tab", "arguments": {"url": "google.com", "browser": "chrome"}}`)
+	if !ok || call.Name != "cua.create_tab" || call.Args["url"] != "google.com" {
+		t.Fatalf("exact JSON object must parse, got ok=%v call=%v", ok, call)
+	}
+	call, ok = ParseTextJSONToolCall("  {\"name\": \"browser.webmcp.list_tools\"}  ")
+	if !ok || call.Name != "browser.webmcp.list_tools" || len(call.Args) != 0 {
+		t.Fatalf("missing arguments must parse as empty, got ok=%v call=%v", ok, call)
+	}
+	rejected := []string{
+		`Here is the call: {"name": "cua.create_tab", "arguments": {}}`,
+		`{"name": "cua.create_tab", "arguments": {}} and more`,
+		"```json\n{\"name\": \"cua.create_tab\", \"arguments\": {}}\n```",
+		`[{"name": "cua.create_tab", "arguments": {}}]`,
+		`{"name": 42, "arguments": {}}`,
+		`{"arguments": {}}`,
+		`{"name": "cua.create_tab", "arguments": "google.com"}`,
+		`{"name": "cua.create_tab", "arguments": null}`,
+		`not json at all`,
+		``,
+	}
+	for _, content := range rejected {
+		if _, ok := ParseTextJSONToolCall(content); ok {
+			t.Fatalf("ParseTextJSONToolCall(%q) must return false", content)
+		}
+	}
+}
+
 func TestMentionedPlugins(t *testing.T) {
 	enabled := []string{"browser", "computer"}
 	cases := []struct {

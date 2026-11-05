@@ -1,6 +1,6 @@
 {
   "name": "browser",
-  "description": "Browse pages through page-declared WebMCP tools only, for sites the user allowed. No DOM fallback is in this seed.",
+  "description": "Browse pages through page-declared WebMCP tools for sites the user allowed, and control Chrome tabs through the debugging port. WebMCP page tools and tab tools are different: page tools only run what a page registered, tab tools open and list Chrome tabs directly, local only.",
   "version": "0.1.0",
   "tools": [
     {
@@ -13,7 +13,7 @@
     },
     {
       "name": "webmcp.execute_tool",
-      "description": "Execute a WebMCP tool on the page that registered it, through the Chrome extension.",
+      "description": "Call webmcp.list_tools first, and only call a tool list_tools returned, with its exact site origin. A site that did not register WebMCP tools cannot be controlled this way, and a tool list_tools did not return does not exist, even if it sounds plausible. Execute a WebMCP tool on the page that registered it, through the Chrome extension.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -31,6 +31,47 @@
           "site",
           "tool"
         ]
+      }
+    },
+    {
+      "name": "list_tabs",
+      "description": "List Chrome tabs through the debugging port at 127.0.0.1:9222. Error if the port is unreachable, never a pretend tab list.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "create_tab",
+      "description": "Open a Chrome tab with a URL. In Mac mode it uses the debugging port first, and falls back to opening Chrome with the URL if the port is unreachable, saying plainly which route was used.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "browser": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    },
+    {
+      "name": "get_tab",
+      "description": "Get one Chrome tab by tab id or by a URL substring, through the debugging port. Error if the port is unreachable or no tab matches.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
       }
     }
   ],

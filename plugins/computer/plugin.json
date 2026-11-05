@@ -1,12 +1,103 @@
 {
   "name": "computer",
-  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Dry-run by default.",
+  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Tools are list_apps, get_app_state, get_state, open_app, click, and type_text. Computer execution in the seed is dry-run unless the Mac adapter is on, so a dry-run result means no app was touched.",
   "version": "0.1.0",
   "tools": [
-    {"name": "list_apps", "description": "List apps available to the computer adapter.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_app_state", "description": "Get the current state for an app, without touching it.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}}, "required": ["app"]}},
-    {"name": "click", "description": "Click an element or coordinate in an app. Requires confirmation for risky targets.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}, "element_index": {"type": "integer"}}, "required": ["app"]}},
-    {"name": "type_text", "description": "Type text into an app. Sensitive data transmission requires pre-approval or confirmation.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}, "text": {"type": "string"}}, "required": ["app", "text"]}}
+    {
+      "name": "list_apps",
+      "description": "List apps available to the computer adapter.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "get_app_state",
+      "description": "Get the current state for an app, without touching it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app"
+        ]
+      }
+    },
+    {
+      "name": "get_state",
+      "description": "Get the current computer state: mode, running apps, and Chrome tabs if the debugging port is reachable, else tabs unavailable with the port instruction.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "open_app",
+      "description": "Open a Mac app by name. In dry-run mode this records only, no app is opened.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app"
+        ]
+      }
+    },
+    {
+      "name": "click",
+      "description": "Click at screen coordinates x and y in a Mac app. Requires confirmation for risky targets, and needs Accessibility permission in Mac mode.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "element_index": {
+            "type": "integer"
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "app",
+          "x",
+          "y"
+        ]
+      }
+    },
+    {
+      "name": "type_text",
+      "description": "Type text into a Mac app. Sensitive data transmission requires pre-approval or confirmation, and the text is never logged.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "text"
+        ]
+      }
+    }
   ],
-  "allowlist": {"hosts": ["127.0.0.1"]}
+  "allowlist": {
+    "hosts": [
+      "127.0.0.1"
+    ]
+  }
 }

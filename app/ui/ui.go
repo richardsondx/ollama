@@ -1020,6 +1020,14 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 	// inject them into the next request, and attach on first assistant content/thinking.
 	var pendingAssistantToolCalls []store.ToolCall
 
+	// Text-JSON fallback guard: the index of each assistant message
+	// already converted from plain JSON text into a tool call, so
+	// one such message can only trigger once, never loop on itself
+	// in the next pass. A new assistant message in the next pass is
+	// a different index, so a model that repeats the same JSON gets
+	// a fresh, single conversion for that new message.
+	textJSONConverted := map[int]bool{}
+
 	passNum := 1
 
 	for {
@@ -1365,6 +1373,145 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 			json.NewEncoder(w).Encode(errorEvent)
 			flusher.Flush()
 			return nil
+		}
+
+		// Text-JSON fallback: some models write a tool call as
+		// plain assistant text that is exactly one JSON object,
+		// for example {"name": "cua.create_tab", "arguments": {...}},
+		// instead of a structured tool call. The structured loop
+		// above never fires for that text, so the turn stalls.
+		// Only an exact object triggers this: text plus JSON, a
+		// code block, or a JSON array do not. An unknown name is
+		// left as chat text, exactly as today, so a made-up tool
+		// such as computer.open_url is never invented into a real
+		// one. An ambiguous name reports its candidates as a tool
+		// error and runs nothing. A resolved name runs exactly
+		// once here, appends a tool message, and continues the
+		// loop so the model can answer from the result, the same
+		// way a structured call does. PluginTool.Execute still
+		// applies the confirmation gate, so a risky text-JSON
+		// call returns confirmation_required as an error, never
+		// as success. The converted index guard above means this
+		// same assistant message cannot trigger again next pass,
+		// because a tool message now follows it.
+		if !toolsExecuted && len(chat.Messages) > 0 {
+			idx := len(chat.Messages) - 1
+			last := chat.Messages[idx]
+			if last.Role == "assistant" && !textJSONConverted[idx] {
+				if call, ok := tools.ParseTextJSONToolCall(last.Content); ok {
+					if fullName, resolveErr := registry.ResolveName(call.Name); resolveErr == nil {
+						textJSONConverted[idx] = true
+						toolsExecuted = true
+						result, content, execErr := registry.Execute(ctx, fullName, call.Args)
+						if execErr != nil {
+							errContent := fmt.Sprintf("Error: %v", execErr)
+							toolErrMsg := store.NewMessage("tool", errContent, nil)
+							toolErrMsg.ToolName = fullName
+							chat.Messages = append(chat.Messages, toolErrMsg)
+							if err := s.Store.AppendMessage(chat.ID, toolErrMsg); err != nil {
+								return err
+							}
+							toolResult := true
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName: "tool",
+								Content:   &errContent,
+								ToolName:  &fullName,
+							})
+							flusher.Flush()
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName:      "tool_result",
+								Content:        &errContent,
+								ToolName:       &fullName,
+								ToolResult:     &toolResult,
+								ToolResultData: nil,
+							})
+							flusher.Flush()
+						} else {
+							var tr json.RawMessage
+							if strings.HasPrefix(fullName, "browser") && fullName != "browser.search" {
+								if browser != nil {
+									if stateBytes, err := json.Marshal(browser.State()); err == nil {
+										_ = s.Store.UpdateChatBrowserState(chat.ID, json.RawMessage(stateBytes))
+									}
+								}
+								if strings.HasPrefix(fullName, "browser.webmcp.") {
+									if encoded, err := json.Marshal(result); err == nil {
+										tr = encoded
+									}
+								}
+							} else {
+								if encoded, err := json.Marshal(result); err == nil {
+									tr = encoded
+								}
+							}
+							modelContent := content
+							if fullName == "web_fetch" && modelContent == "" {
+								if str, ok := result.(string); ok {
+									modelContent = str
+								}
+							}
+							if modelContent == "" && len(tr) > 0 {
+								modelContent = string(tr)
+							}
+							toolMsg := store.NewMessage("tool", modelContent, &store.MessageOptions{
+								ToolResult: &tr,
+							})
+							toolMsg.ToolName = fullName
+							chat.Messages = append(chat.Messages, toolMsg)
+							if err := s.Store.AppendMessage(chat.ID, toolMsg); err != nil {
+								return err
+							}
+							toolResult := true
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName: "tool",
+								Content:   &content,
+								ToolName:  &fullName,
+							})
+							flusher.Flush()
+							var toolState any = nil
+							if browser != nil {
+								toolState = browser.State()
+							}
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName:      "tool_result",
+								Content:        &content,
+								ToolName:       &fullName,
+								ToolResult:     &toolResult,
+								ToolResultData: result,
+								ToolState:      toolState,
+							})
+							flusher.Flush()
+						}
+					} else if strings.Contains(resolveErr.Error(), "ambiguous") {
+						textJSONConverted[idx] = true
+						toolsExecuted = true
+						errContent := fmt.Sprintf("Error: %v", resolveErr)
+						toolErrMsg := store.NewMessage("tool", errContent, nil)
+						toolErrMsg.ToolName = call.Name
+						chat.Messages = append(chat.Messages, toolErrMsg)
+						if err := s.Store.AppendMessage(chat.ID, toolErrMsg); err != nil {
+							return err
+						}
+						toolResult := true
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName: "tool",
+							Content:   &errContent,
+							ToolName:  &call.Name,
+						})
+						flusher.Flush()
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName:      "tool_result",
+							Content:        &errContent,
+							ToolName:       &call.Name,
+							ToolResult:     &toolResult,
+							ToolResultData: nil,
+						})
+						flusher.Flush()
+					}
+					// Unknown name: leave the message as chat text,
+					// as today, and fall through to break below.
+				}
+			}
 		}
 
 		// If no tools were executed, exit the loop

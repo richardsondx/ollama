@@ -1,13 +1,15 @@
 ---
 name: computer
-description: Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Dry-run by default.
+description: Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Dry-run by default. Use @computer for apps, and @browser for Chrome tabs. There is no separate plugin to mention for app or tab control.
 ---
 
 # Computer
 
 This is an open replacement, not a copy of any proprietary computer control package. It does not claim compatibility with that package.
 
-Start by getting state for the app you want to use. If you cannot identify an app from the task, list apps first. After one or more actions, get state again before deciding what to do next, and re-derive element references from the latest state instead of reusing stale ones.
+Start by getting state for the app you want to use. If you cannot identify an app from the task, list apps first, or use get_state for mode, running apps, and Chrome tabs if the debugging port answers. After one or more actions, get state again before deciding what to do next, and re-derive element references from the latest state instead of reusing stale ones.
+
+Open an app with open_app. Click needs screen coordinates x and y, and type_text types into the app you name, after activating it. In dry-run mode, open_app, click, and type_text record only, and no app is touched. In real Mac mode they call the accessibility adapter, which needs Accessibility permission.
 
 Prefer element-based actions over coordinate actions. If accessibility actions or text are unavailable or behave unexpectedly, switch to screenshots, coordinate clicks, and key presses, and say so.
 

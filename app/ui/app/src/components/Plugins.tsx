@@ -65,8 +65,8 @@ export function PluginIcon({ name, size = 32 }: { name: string; size?: number })
 }
 
 function examplesFor(name: string): string[] {
-  if (name === "browser") return ["Browser: test my checkout flow on localhost", "Browser: list the tools on the page I allowed"];
-  if (name === "computer") return ["Computer: open my calendar and find a good time for a focus block", "Computer: list the apps I can control"];
+  if (name === "browser") return ["Browser: create a tab for https://google.com", "Browser: list the tools on the page I allowed"];
+  if (name === "computer") return ["Computer: open Chrome", "Computer: list the apps I can control"];
   if (name === "skill-creator") return ["Skill: validate a new skill folder before I share it", "Skill: check a SKILL.md frontmatter name matches its folder"];
   return ["Use " + name + " from Ollama, locally only"];
 }
@@ -723,7 +723,7 @@ export default function Plugins() {
                   </div>
 
                   <p className="mt-4 text-sm font-medium">Allowed tools</p>
-                  {["browser", "computer", "cua"].map((pluginName) => {
+                  {["browser", "computer"].map((pluginName) => {
                     const plugin = plugins.find((p) => p.name === pluginName);
                     if (!plugin) return null;
                     return (
