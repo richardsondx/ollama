@@ -1,6 +1,8 @@
+<img src="docs/images/ollamapaca-logo.png" width="120" alt="Ollamapaca logo, a black line-art alpaca with a multicolour puzzle piece">
+
 # Ollamapaca
 
-Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use browser, computer, and skill plugins locally, without a hosted service. The repo is https://github.com/richardsondx/ollamapaca, branch main, and the packaged Mac bundle is Ollamapaca.app, bundle id ai.ollamapaca.app. The server binary is still ollama, and the Go module is still github.com/ollama/ollama.
+Ollamapaca is Ollama plus Alpaca, a fusion of plugins and skills. Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use browser, computer, and skill plugins locally, without a hosted service. The repo is https://github.com/richardsondx/ollamapaca, branch main, and the packaged Mac bundle is Ollamapaca.app, bundle id ai.ollamapaca.app. The server binary is still ollama, and the Go module is still github.com/ollama/ollama.
 
 Companion seed: https://github.com/richardsondx/ollama-plugin-seed, the plugin set, the Chrome extension, and the local plugin server that executes plugin tools.
 
