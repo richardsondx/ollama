@@ -1,6 +1,6 @@
 {
   "name": "browser",
-  "description": "Browse pages through page-declared WebMCP tools for sites the user allowed, and control Chrome tabs through the debugging port. WebMCP page tools and tab tools are different: page tools only run what a page registered, tab tools open and list Chrome tabs directly, local only.",
+  "description": "Browse pages through page-declared WebMCP tools for sites the user allowed, and control Chrome tabs through the debugging port. WebMCP page tools and tab tools are different: page tools only run what a page registered, tab tools open and list Chrome tabs directly, local only. Transcript: before the first tool call in a turn, say in one plain sentence what you are about to do. After a successful open, answer in one sentence naming the app, the site, and the URL as a link, and stop. Do not dump tool result JSON, and do not call more tools after success.",
   "version": "0.1.0",
   "tools": [
     {

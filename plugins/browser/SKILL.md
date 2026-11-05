@@ -23,3 +23,7 @@ Tab tools are generic Chrome control, through the Chrome debugging port, not pag
 Rules for tab tools: dry-run returns dry_run true and opens no tab. Tab state needs Chrome launched with --remote-debugging-port=9222. Without that port, list_tabs and get_tab error plainly, never with a pretend tab. Never invent a tab id, title, or URL. There is no separate plugin to mention for tabs. Use @browser.
 
 Do not read cookies, passwords, local storage, or session stores. Do not replace a sign-in block with a web search or another site merely to bypass sign-in.
+
+## Transcript
+
+Before the first tool call in a turn, say in one plain sentence what you are about to do. After a successful open, answer in one sentence naming the app, the site, and the URL as a link, and stop. Do not dump tool result JSON, and do not call more tools after success. The chat UI groups browser and computer tool calls into named steps with a worked timer, so the raw tool name and result are hidden by default, but the final answer must still be a plain sentence, not a tool dump.
