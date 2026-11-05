@@ -43,7 +43,7 @@
     },
     {
       "name": "create_tab",
-      "description": "Open a Chrome tab with a URL. In Mac mode it uses the debugging port first, and falls back to opening Chrome with the URL if the port is unreachable, saying plainly which route was used.",
+      "description": "Open a Chrome tab with a URL. In Mac mode it uses the debugging port first, and falls back to opening Chrome with the URL if the port is unreachable, saying plainly which route was used. After a successful create_tab, do not call create_tab again for the same URL, and do not poll get_tab repeatedly. Answer that the tab is open. A tab that already exists for that URL is returned, not created again.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -61,7 +61,7 @@
     },
     {
       "name": "get_tab",
-      "description": "Get one Chrome tab by tab id or by a URL substring, through the debugging port. Error if the port is unreachable or no tab matches.",
+      "description": "Get one Chrome tab by tab id or by a URL substring, through the debugging port. It returns title and URL only. Error if the port is unreachable or no tab matches. Do not poll get_tab repeatedly for the same tab.",
       "parameters": {
         "type": "object",
         "properties": {

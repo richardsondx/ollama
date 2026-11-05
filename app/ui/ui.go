@@ -1028,9 +1028,32 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 	// a fresh, single conversion for that new message.
 	textJSONConverted := map[int]bool{}
 
+	// Loop guard: tool calls are counted per turn, by resolved
+	// name plus arguments JSON. The third identical call in one
+	// turn is not executed again, the turn stops instead, so a
+	// model that repeats a call cannot open another tab or click
+	// again. Passes are capped at 10 for the same reason: the
+	// loop used to break only when no tools executed, so a
+	// repeating model never stopped on its own.
+	toolCallCounts := map[string]int{}
+	stopTurn := false
+	recordToolCall := func(name string, argsJSON string) bool {
+		key := name + "\x00" + argsJSON
+		toolCallCounts[key]++
+		return toolCallCounts[key] >= 3
+	}
+
 	passNum := 1
 
 	for {
+		if passNum > 10 {
+			note := store.NewMessage("assistant", "Stopping this turn: the tool pass limit of 10 was reached. No further tool call was made.", nil)
+			chat.Messages = append(chat.Messages, note)
+			if err := s.Store.AppendMessage(chat.ID, note); err != nil {
+				return err
+			}
+			break
+		}
 		var toolsExecuted bool
 
 		availableTools := registry.AvailableTools()
@@ -1172,8 +1195,38 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 				}
 
 				for _, toolCall := range res.Message.ToolCalls {
+					if stopTurn {
+						continue
+					}
 					// continues loop as tools were executed
 					toolsExecuted = true
+					argsJSON, _ := json.Marshal(toolCall.Function.Arguments.ToMap())
+					if recordToolCall(toolCall.Function.Name, string(argsJSON)) {
+						stopTurn = true
+						noteContent := fmt.Sprintf("Stopping this turn: the same tool call was repeated 3 times: %s with these arguments. No further tool call was made for it.", toolCall.Function.Name)
+						noteMsg := store.NewMessage("tool", noteContent, nil)
+						noteMsg.ToolName = toolCall.Function.Name
+						chat.Messages = append(chat.Messages, noteMsg)
+						if err := s.Store.AppendMessage(chat.ID, noteMsg); err != nil {
+							return err
+						}
+						toolResult := true
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName: "tool",
+							Content:   &noteContent,
+							ToolName:  &toolCall.Function.Name,
+						})
+						flusher.Flush()
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName:      "tool_result",
+							Content:        &noteContent,
+							ToolName:       &toolCall.Function.Name,
+							ToolResult:     &toolResult,
+							ToolResultData: nil,
+						})
+						flusher.Flush()
+						continue
+					}
 					result, content, err := registry.Execute(ctx, toolCall.Function.Name, toolCall.Function.Arguments.ToMap())
 					if err != nil {
 						errContent := fmt.Sprintf("Error: %v", err)
@@ -1402,7 +1455,38 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 					if fullName, resolveErr := registry.ResolveName(call.Name); resolveErr == nil {
 						textJSONConverted[idx] = true
 						toolsExecuted = true
-						result, content, execErr := registry.Execute(ctx, fullName, call.Args)
+						var result any
+						var content string
+						var execErr error
+						argsJSON, _ := json.Marshal(call.Args)
+						if recordToolCall(fullName, string(argsJSON)) {
+							stopTurn = true
+							execErr = fmt.Errorf("same tool call repeated 3 times, turn stopping: %s", fullName)
+						} else {
+							// Render this converted call exactly
+							// once, as a structured tool call, not
+							// as a block of JSON text. The frontend
+							// renders both content and tool_calls,
+							// so the JSON text must be cleared, or
+							// the same call would show twice. The
+							// stored message is updated, and the
+							// in-memory message too, so the next
+							// pass sends a structured tool call,
+							// not the JSON text again.
+							last.ToolCalls = []store.ToolCall{{
+								Type: "function",
+								Function: store.ToolFunction{
+									Name:      fullName,
+									Arguments: string(argsJSON),
+								},
+							}}
+							last.Content = ""
+							chat.Messages[idx] = last
+							if err := s.Store.UpdateLastMessage(chat.ID, last); err != nil {
+								return err
+							}
+							result, content, execErr = registry.Execute(ctx, fullName, call.Args)
+						}
 						if execErr != nil {
 							errContent := fmt.Sprintf("Error: %v", execErr)
 							toolErrMsg := store.NewMessage("tool", errContent, nil)
@@ -1512,6 +1596,13 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 					// as today, and fall through to break below.
 				}
 			}
+		}
+
+		// A repeat or pass-limit stop ends the turn here, even
+		// though a tool message was appended, so the model does
+		// not get another pass to repeat the call again.
+		if stopTurn {
+			break
 		}
 
 		// If no tools were executed, exit the loop

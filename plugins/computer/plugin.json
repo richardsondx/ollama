@@ -1,6 +1,6 @@
 {
   "name": "computer",
-  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Tools are list_apps, get_app_state, get_state, open_app, click, and type_text. Computer execution in the seed is dry-run unless the Mac adapter is on, so a dry-run result means no app was touched.",
+  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Tools are list_apps, get_app_state, get_state, open_app, click, type_text, and press_key. Computer execution in the seed is dry-run unless the Mac adapter is on, so a dry-run result means no app was touched.",
   "version": "0.1.0",
   "tools": [
     {
@@ -51,7 +51,7 @@
     },
     {
       "name": "click",
-      "description": "Click at screen coordinates x and y in a Mac app. Requires confirmation for risky targets, and needs Accessibility permission in Mac mode.",
+      "description": "Click at screen coordinates x and y in a Mac app. Do not guess coordinates. Only click when the user gave x and y, or an element list gave coordinates. Never invent coordinates such as 100, 100. Requires confirmation for risky targets, and needs Accessibility permission in Mac mode.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -77,7 +77,7 @@
     },
     {
       "name": "type_text",
-      "description": "Type text into a Mac app. Sensitive data transmission requires pre-approval or confirmation, and the text is never logged.",
+      "description": "Type text into a Mac app. Typing alone does not submit anything. To submit a typed URL or form field, call press_key with key Enter after typing. Sensitive data transmission requires pre-approval or confirmation, and the text is never logged.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -91,6 +91,25 @@
         "required": [
           "app",
           "text"
+        ]
+      }
+    },
+    {
+      "name": "press_key",
+      "description": "Press one key in a Mac app, after activating it. Use Enter to submit a typed URL or form field. Allowed keys are Enter, Escape, Tab, Space, ArrowUp, ArrowDown, ArrowLeft, and ArrowRight.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "key"
         ]
       }
     }

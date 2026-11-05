@@ -9,7 +9,7 @@ This is an open replacement, not a copy of any proprietary computer control pack
 
 Start by getting state for the app you want to use. If you cannot identify an app from the task, list apps first, or use get_state for mode, running apps, and Chrome tabs if the debugging port answers. After one or more actions, get state again before deciding what to do next, and re-derive element references from the latest state instead of reusing stale ones.
 
-Open an app with open_app. Click needs screen coordinates x and y, and type_text types into the app you name, after activating it. In dry-run mode, open_app, click, and type_text record only, and no app is touched. In real Mac mode they call the accessibility adapter, which needs Accessibility permission.
+Open an app with open_app. Click needs screen coordinates x and y, and type_text types into the app you name, after activating it. Typing alone does not submit anything: to submit a typed URL, call press_key with key Enter after typing. Do not guess coordinates. Only click when the user gave x and y, or an element list gave coordinates. Never invent coordinates such as 100, 100. In dry-run mode, open_app, click, type_text, and press_key record only, and no app is touched. In real Mac mode they call the accessibility adapter, which needs Accessibility permission.
 
 Prefer element-based actions over coordinate actions. If accessibility actions or text are unavailable or behave unexpectedly, switch to screenshots, coordinate clicks, and key presses, and say so.
 
