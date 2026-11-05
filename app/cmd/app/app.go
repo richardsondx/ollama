@@ -88,7 +88,7 @@ func main() {
 			case "hidden", "-j", "--hide":
 				// startHidden suppresses the UI on startup, and can be triggered multiple ways
 				// On windows, path based via login startup detection
-				// On MacOS via [NSApp isHidden] from `open -j -a /Applications/Ollama.app` or equivalent
+				// On MacOS via [NSApp isHidden] from `open -j -a /Applications/Ollamapaca.app` or equivalent
 				// On both via the "hidden" command line argument
 				startHidden = true
 			case "--fast-startup":

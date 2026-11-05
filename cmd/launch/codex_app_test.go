@@ -3607,7 +3607,7 @@ func TestDefaultCodexAppIsRunningProcesses(t *testing.T) {
 		want          bool
 	}{
 		{name: "no processes", goos: "darwin"},
-		{name: "apps stopped or absent", goos: "darwin", output: "1 /sbin/launchd\n100 /Applications/Ollama.app/Contents/MacOS/Ollama\n"},
+		{name: "apps stopped or absent", goos: "darwin", output: "1 /sbin/launchd\n100 /Applications/Ollamapaca.app/Contents/MacOS/Ollamapaca\n"},
 		{name: "ChatGPT main", goos: "darwin", output: fmt.Sprintf("%d /Applications/ChatGPT.app/Contents/MacOS/ChatGPT\n", otherPID), want: true},
 		{name: "Codex main", goos: "darwin", output: fmt.Sprintf("%d /Applications/Codex.app/Contents/MacOS/Codex\n", otherPID), want: true},
 		{name: "renamed ChatGPT bundle", goos: "darwin", output: fmt.Sprintf("%d /Applications/ChatGPT Preview.app/Contents/MacOS/ChatGPT\n", otherPID), nameMatchExit: "0", want: true},

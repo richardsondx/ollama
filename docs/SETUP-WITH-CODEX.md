@@ -33,7 +33,7 @@ Seed part, in order, local only:
 Rules for the whole setup:
 - Computer actions stay dry-run, and any action that deletes, sends, pays, changes permissions, or installs anything needs my confirmation right before it runs, not in advance.
 - If a step fails, stop at that step, show the exact error, and tell me what would unblock it. Do not skip the step and claim success.
-- At the end, give me a short checklist: what works, what is still manual, and the exact URLs: the desktop Plugins page in the Ollama app, the seed Plugins page at http://127.0.0.1:11435, the fork server on the port you chose, the local demo at http://localhost:3000, and Ollama on http://127.0.0.1:11434 if it is also running.
+- At the end, give me a short checklist: what works, what is still manual, and the exact URLs: the desktop Plugins page in the Ollamapaca app, the seed Plugins page at http://127.0.0.1:11435, the fork server on the port you chose, the local demo at http://localhost:3000, and Ollama on http://127.0.0.1:11434 if it is also running.
 
 What is honest, and what is not yet done:
 - Enabling a plugin lists its tools at /api/tools. Chat does not call those tools by itself yet, so enabling alone does not change what the model can do in the desktop app. Do not claim otherwise.

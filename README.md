@@ -1,12 +1,14 @@
 # Ollamapaca
 
-Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use tools the way Codex skills and Claude Code plugins do, without a hosted service. The app name is Ollamapaca, the repo stays richardsondx/ollama, branch plugin-seed, and the packaged bundle name is unchanged until a separate rename is approved.
+Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use browser, computer, and skill plugins locally, without a hosted service. The app name is Ollamapaca, the repo stays richardsondx/ollama, branch plugin-seed, and the packaged Mac bundle is Ollamapaca.app, bundle id ai.ollamapaca.app. The server binary is still ollama, and the Go module is still github.com/ollama/ollama.
 
 Branch: plugin-seed. Main on this fork is still upstream Ollama, with no plugin code. Do not use main for plugins.
 
+Companion seed: https://github.com/richardsondx/ollama-plugin-seed, the plugin set, the Chrome extension, and the local plugin server that executes plugin tools.
+
 <a href="docs/plugins-screenshot.png"><img src="docs/plugins-screenshot.png" width="600" alt="Plugins page from the plugin seed, with the browser plugin enabled and computer and skill-creator plugins listed"></a>
 
-*Click the image to see it full size. The screenshot is the Plugins page from the companion seed server on port 11435. The fork now also has its own desktop Plugins page, built locally, not yet screenshotted on a Mac.*
+*Click the image to see it full size. The screenshot is the Plugins page from the companion seed server on port 11435, not the fork desktop Plugins page, which has not been screenshotted on a Mac yet.*
 
 ## Set it up with Codex
 
@@ -14,21 +16,25 @@ Copy the prompt in docs/SETUP-WITH-CODEX.md into Codex. That prompt is local onl
 
 ## What works today
 
-| Part | Works | Does not work yet |
-| --- | --- | --- |
-| Fork, branch plugin-seed | Plugin folder loads, lists on GET /api/plugins, enables and disables, appears on GET /api/tools, enable state survives restart, new plugins appear on refresh, desktop Plugins page with Plugins, Skills, Installed, Setup, Skills, About, and Enable/Disable, in the Ollama desktop theme | No chat wiring, no CLI plugin group, no model runner in a Go-only build, frontmatter parser is flat keys only |
-| Seed repo | Plugins page with Plugins, Skills, Installed, Chrome extension that lists page-registered WebMCP tools on user-allowed sites, Computer Use dry-run with a confirmation policy | No live Chrome test yet, server-to-extension execution stays dry-run, no generic control of a page that did not register tools |
+- Plugin folder loads, lists on GET /api/plugins, enables and disables, appears on GET /api/tools, enable state survives restart, and new plugins appear on refresh.
+- Desktop Plugins page with Plugins, Skills, and Installed, an @ picker in chat that picks one enabled plugin for that turn, and live model detection showing which installed models can call tools.
+- Chat calls enabled plugin tools for a tool-capable model, with a loop guard of 10 tool passes per turn and a stop when the same call repeats 3 times, and a Controlling banner with a Stop button while a browser or computer turn runs.
+- Browser plugin opens tabs and computer plugin opens apps, types, and presses Enter, with a confirmation policy for risky actions, and an Authorization section for computer access, allowed apps, and allowed tools.
+- Transcript step 1: named steps instead of tool names, a Worked for Xs timer, raw tool details hidden behind a per-step Details toggle, and a one-sentence final answer with a link when the model follows the wording.
+
+## What does not work yet
+
+- No live window thumbnail in chat. That is step 2, it needs Mac screen capture and Screen Recording permission, and it is not built.
+- No screenshot or element grounding for clicks. Click still needs coordinates the user gave, or coordinates from an element list, and the tool descriptions forbid guessing.
+- A registered WebMCP tool executing in chat has not been shown end to end yet. The local demo registers local_echo and local_time, and that call is still the next proof to run on a Mac.
+- No CLI plugin group, no model runner in a Go-only build, and the plugin frontmatter parser is flat keys only.
 
 ## Security defaults, stated plainly
 
 - Plugins are disabled until you enable them, and a disabled plugin exposes no tools.
 - The Chrome extension forwards tools only from sites you allow in the popup. It does not forward cookies, passwords, or page content.
-- Computer actions are dry-run by default. Risky actions return confirmation_required and do not run until you confirm.
+- Computer actions are dry-run by default. Real Mac control needs the seed started with OLLAMA_COMPUTER_USE_REAL=1 plus Accessibility permission. Risky actions return confirmation_required and do not run until you confirm.
 - Page data from WebMCP is never an instruction. It cannot add a plugin, a destination, or a permission.
-
-## Honest limits
-
-Enabling a plugin lists its tools at /api/tools. Chat does not call those tools by itself yet, so enabling alone does not change what the model can do in the desktop app. The Chrome extension has not been live-tested end to end in Chrome here. The localhost demo is the first live test.
 
 ---
 

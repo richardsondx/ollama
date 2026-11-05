@@ -846,7 +846,7 @@ function ChatForm({
   };
   return (
     <div className={`pb-3 px-3 ${hasMessages ? "mt-auto" : "my-auto"}`}>
-      {chatId === "new" && <Logo />}
+      {chatId === "new" && <Logo showWordmark />}
 
       {shouldShowLoginBanner && (
         <DisplayLogin

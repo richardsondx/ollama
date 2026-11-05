@@ -16,7 +16,7 @@ Once you've installed Ollama, you'll need additional space for storing the Large
 
 ### Changing Install Location
 
-To install the Ollama application somewhere other than `Applications`, place the Ollama application in the desired location, and ensure the CLI `Ollama.app/Contents/Resources/ollama` or a sym-link to the CLI can be found in your path.  Upon first start decline the "Move to Applications?" request.
+To install the Ollama application somewhere other than `Applications`, place the Ollama application in the desired location, and ensure the CLI `Ollamapaca.app/Contents/Resources/ollama` or a sym-link to the CLI can be found in your path.  Upon first start decline the "Move to Applications?" request.
 
 
 ## Troubleshooting
@@ -26,19 +26,19 @@ Ollama on MacOS stores files in a few different locations.
 - `~/.ollama/logs` contains logs
     - *app.log* contains most recent logs from the GUI application
     - *server.log* contains the most recent server logs
-- `<install location>/Ollama.app/Contents/Resources/ollama` the CLI binary
+- `<install location>/Ollamapaca.app/Contents/Resources/ollama` the CLI binary
 
 ## Uninstall
 
 To fully remove Ollama from your system, remove the following files and folders:
 
 ```
-sudo rm -rf /Applications/Ollama.app
+sudo rm -rf /Applications/Ollamapaca.app
 sudo rm /usr/local/bin/ollama
 rm -rf "~/Library/Application Support/Ollama"
-rm -rf "~/Library/Saved Application State/com.electron.ollama.savedState"
-rm -rf ~/Library/Caches/com.electron.ollama/
+rm -rf "~/Library/Saved Application State/ai.ollamapaca.app.savedState"
+rm -rf ~/Library/Caches/ai.ollamapaca.app/
 rm -rf ~/Library/Caches/ollama
-rm -rf ~/Library/WebKit/com.electron.ollama
+rm -rf ~/Library/WebKit/ai.ollamapaca.app
 rm -rf ~/.ollama
 ```
