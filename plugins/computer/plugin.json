@@ -1,0 +1,122 @@
+{
+  "name": "computer",
+  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Tools are list_apps, get_app_state, get_state, open_app, click, type_text, and press_key. Computer execution in the seed is dry-run unless the Mac adapter is on, so a dry-run result means no app was touched. Transcript: before the first tool call in a turn, say in one plain sentence what you are about to do. After a successful open, answer in one sentence naming the app, the site, and the URL as a link, and stop. Do not dump tool result JSON, and do not call more tools after success.",
+  "version": "0.1.0",
+  "tools": [
+    {
+      "name": "list_apps",
+      "description": "List apps available to the computer adapter.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "get_app_state",
+      "description": "Get the current state for an app, without touching it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app"
+        ]
+      }
+    },
+    {
+      "name": "get_state",
+      "description": "Get the current computer state: mode, running apps, and Chrome tabs if the debugging port is reachable, else tabs unavailable with the port instruction.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "open_app",
+      "description": "Open a Mac app by name. In dry-run mode this records only, no app is opened.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app"
+        ]
+      }
+    },
+    {
+      "name": "click",
+      "description": "Click at screen coordinates x and y in a Mac app. Do not guess coordinates. Only click when the user gave x and y, or an element list gave coordinates. Never invent coordinates such as 100, 100. Requires confirmation for risky targets, and needs Accessibility permission in Mac mode.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "element_index": {
+            "type": "integer"
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "app",
+          "x",
+          "y"
+        ]
+      }
+    },
+    {
+      "name": "type_text",
+      "description": "Type text into a Mac app. Typing alone does not submit anything. To submit a typed URL or form field, call press_key with key Enter after typing. Sensitive data transmission requires pre-approval or confirmation, and the text is never logged.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "text"
+        ]
+      }
+    },
+    {
+      "name": "press_key",
+      "description": "Press one key in a Mac app, after activating it. Use Enter to submit a typed URL or form field. Allowed keys are Enter, Escape, Tab, Space, ArrowUp, ArrowDown, ArrowLeft, and ArrowRight.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "key"
+        ]
+      }
+    }
+  ],
+  "allowlist": {
+    "hosts": [
+      "127.0.0.1"
+    ]
+  }
+}

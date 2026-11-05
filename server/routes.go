@@ -2393,6 +2393,13 @@ func (s *Server) GenerateRoutes() (http.Handler, error) {
 	r.HEAD("/api/version", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"version": version.Version}) })
 	r.GET("/api/version", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"version": version.Version}) })
 	r.GET("/api/status", s.StatusHandler)
+	// Plugins (proof slice): loader and registry only, no chat wiring.
+	// One handler is shared across plugin routes, so enable state
+	// is visible on the tools route.
+	pluginHandler := pluginHandler()
+	r.GET("/api/plugins", gin.WrapH(pluginHandler))
+	r.Any("/api/plugins/*path", gin.WrapH(pluginHandler))
+	r.GET("/api/tools", gin.WrapH(pluginHandler))
 	// Codex uses this existing Ollama listener for both native and Ollama
 	// models. The proxy selects the upstream per request.
 	r.Any(proxy.CodexDesktopPathPrefix+"/*path", gin.WrapH(codexDesktopProxy))

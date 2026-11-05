@@ -412,8 +412,8 @@ static NSBundle *OllamaResourceBundle(void) {
 
     NSString *cwdPath = [[NSFileManager defaultManager] currentDirectoryPath];
     NSArray<NSString *> *bundlePaths = @[
-        [cwdPath stringByAppendingPathComponent:@"darwin/Ollama.app"],
-        [cwdPath stringByAppendingPathComponent:@"app/darwin/Ollama.app"],
+        [cwdPath stringByAppendingPathComponent:@"darwin/Ollamapaca.app"],
+        [cwdPath stringByAppendingPathComponent:@"app/darwin/Ollamapaca.app"],
     ];
     for (NSString *bundlePath in bundlePaths) {
         if ([[NSFileManager defaultManager] fileExistsAtPath:bundlePath]) {
@@ -507,7 +507,7 @@ static NSImage *ollamaApplicationIcon(void) {
     [self applyShowAppsInMenu:shouldShowAppsInMenu()];
 
     NSMenuItem *appsMenuItem =
-        [[NSMenuItem alloc] initWithTitle:@"Open Ollama"
+        [[NSMenuItem alloc] initWithTitle:@"Open Ollamapaca"
                                    action:@selector(appsUI)
                             keyEquivalent:@""];
     [appsMenuItem setTarget:self];
@@ -536,7 +536,7 @@ static NSImage *ollamaApplicationIcon(void) {
 
     [menu addItem:[NSMenuItem separatorItem]];
 
-    [menu addItemWithTitle:@"Quit Ollama"
+    [menu addItemWithTitle:@"Quit Ollamapaca"
                     action:@selector(requestQuit)
              keyEquivalent:@"q"];
 
@@ -552,7 +552,7 @@ static NSImage *ollamaApplicationIcon(void) {
     [self refreshStatusItem];
 
     // Application menu
-    NSString *appName = @"Ollama";
+    NSString *appName = @"Ollamapaca";
 
     NSMenu *mainMenu = [[NSMenu alloc] init];
     NSMenuItem *appMenuItem = [[NSMenuItem alloc] initWithTitle:appName
@@ -1527,7 +1527,7 @@ didCompleteWithError:(NSError *)error {
         self.statusItem.button.image = statusImage;
     } else {
         self.statusItem.button.image = nil;
-        self.statusItem.button.title = @"Ollama";
+        self.statusItem.button.title = @"Ollamapaca";
     }
 }
 
@@ -1557,7 +1557,7 @@ didCompleteWithError:(NSError *)error {
         NSAlert *alert = [[NSAlert alloc] init];
         [alert setAlertStyle:NSAlertStyleWarning];
         [alert setIcon:ollamaApplicationIcon()];
-        [alert setMessageText:@"Restart Claude before quitting Ollama?"];
+        [alert setMessageText:@"Restart Claude before quitting Ollamapaca?"];
         [alert setInformativeText:
             @"Claude must restart before Ollama quits. Any running task will stop."];
         [alert addButtonWithTitle:@"Restart Claude and Quit"];
@@ -1588,9 +1588,9 @@ didCompleteWithError:(NSError *)error {
             NSAlert *alert = [[NSAlert alloc] init];
             [alert setAlertStyle:NSAlertStyleWarning];
             [alert setIcon:ollamaApplicationIcon()];
-            [alert setMessageText:@"Unable to quit Ollama"];
+            [alert setMessageText:@"Unable to quit Ollamapaca"];
             [alert setInformativeText:
-                @"Ollama couldn’t update Claude, so it is still running. Check the Ollama log and try again."];
+                @"Ollamapaca couldn’t update Claude, so it is still running. Check the Ollamapaca log and try again."];
             [alert runModal];
         });
     });
@@ -1614,10 +1614,10 @@ didCompleteWithError:(NSError *)error {
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 - (void)registerSelfAsLoginItem:(BOOL)firstTimeRun {
     appLogInfo(@"using v13+ SMAppService for login registration");
-    // Maps to the file Ollama.app/Contents/Library/LaunchAgents/com.ollama.ollama.plist
-    SMAppService* service = [SMAppService agentServiceWithPlistName:@"com.ollama.ollama.plist"];
+    // Maps to the file Ollamapaca.app/Contents/Library/LaunchAgents/ai.ollamapaca.app.plist
+    SMAppService* service = [SMAppService agentServiceWithPlistName:@"ai.ollamapaca.app.plist"];
     if (!service) {
-        appLogInfo(@"SMAppService failed to find service for com.ollama.ollama.plist");
+        appLogInfo(@"SMAppService failed to find service for ai.ollamapaca.app.plist");
         return;
     }
     SMAppServiceStatus status = [service status];
@@ -1666,7 +1666,7 @@ didCompleteWithError:(NSError *)error {
         if (LSSharedFileListItemResolve((LSSharedFileListItemRef)item, 0,
                                         &itemURL, NULL) == noErr) {
             CFStringRef loginPath = CFURLCopyFileSystemPath(itemURL, kCFURLPOSIXPathStyle);
-            // Compare the prefix to match against "keep existing" flow, e.g. // "/Applications/Ollama.app" vs "/Applications/Ollama 2.app"
+            // Compare the prefix to match against "keep existing" flow, e.g. // "/Applications/Ollamapaca.app" vs "/Applications/Ollamapaca 2.app"
             if (loginPath && [(NSString *)loginPath hasPrefix:bundlePrefix]) {
                 appLogInfo([NSString stringWithFormat:@"removing login item %@", loginPath]);
                 LSSharedFileListItemRemove(loginItems,
@@ -1681,7 +1681,7 @@ didCompleteWithError:(NSError *)error {
             CFStringRef displayName = LSSharedFileListItemCopyDisplayName((LSSharedFileListItemRef)item);
             if (displayName) {
                 NSString *name = (__bridge NSString *)displayName;
-                if ([name hasPrefix:@"Ollama"]) {
+                if ([name hasPrefix:@"Ollamapaca"] || [name hasPrefix:@"Ollama"]) {
                     LSSharedFileListItemRemove(loginItems, (LSSharedFileListItemRef)item);
                     appLogInfo([NSString stringWithFormat:@"removing dangling login item %@", displayName]);
                 }
@@ -1903,7 +1903,8 @@ static BOOL isOllamaApplication(NSRunningApplication *app) {
     }
     return [bundleId isEqualToString:[[NSBundle mainBundle] bundleIdentifier]] ||
         [bundleId isEqualToString:@"ai.ollama.ollama"] ||
-        [bundleId isEqualToString:@"com.electron.ollama"];
+        [bundleId isEqualToString:@"com.electron.ollama"] ||
+        [bundleId isEqualToString:@"ai.ollamapaca.app"];
 }
 
 bool otherOllamaProcesses(AppProcessIdentity **processes, size_t *count) {
@@ -2033,7 +2034,7 @@ bool moveToApplications(const char *src) {
 }
 
 AuthorizationRef getSymlinkAuthorization() {
-    return getAuthorization(@"Ollama is trying to install its command line "
+    return getAuthorization(@"Ollamapaca is trying to install its command line "
                             @"interface (CLI) tool.",
                             @"symlink");
 }
@@ -2053,7 +2054,7 @@ bool moveToApplicationsWithAuthorization(const char *src) {
         return NO;
     }
 
-    // Remove existing /Applications/Ollama.app (if any)
+    // Remove existing /Applications/Ollamapaca.app (if any)
     //    - We do this via /bin/rm with elevated privileges
     //
     const char *rmTool = "/bin/rm";
@@ -2166,7 +2167,7 @@ enum AppMove askToMoveToApplications() {
         [[NSAppleEventManager sharedAppleEventManager] currentAppleEvent];
     if (!evt || [evt eventID] != kAEOpenApplication) {
         // This scenario triggers if we were launched from a double click,
-        // or the CLI spawns the app via open -a Ollama.app
+        // or the CLI spawns the app via open -a Ollamapaca.app
         appLogDebug([NSString
             stringWithFormat:@"launched from double click or open -a"]);
     }
@@ -2185,7 +2186,7 @@ enum AppMove askToMoveToApplications() {
     NSAlert *alert = [[NSAlert alloc] init];
     [alert setMessageText:@"Move to Applications?"];
     [alert setInformativeText:
-               @"Ollama works best when run from the Applications directory."];
+               @"Ollamapaca works best when run from the Applications directory."];
     [alert addButtonWithTitle:@"Move to Applications"];
     [alert addButtonWithTitle:@"Don't move"];
 

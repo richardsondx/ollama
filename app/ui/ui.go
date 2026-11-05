@@ -957,6 +957,60 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 				registry.Register(&tools.WebFetch{})
 			}
 		}
+
+		// Plugin tools (chat wiring, 2026-11-04): register tools from
+		// enabled plugins alongside the web search tools, independent
+		// of the WebSearch toggle, for tool-capable models only. Best
+		// effort: a fetch failure is logged and chat continues with
+		// no plugin tools, it never breaks chat. If a browser plugin
+		// tool is registered, make sure a browser state object exists,
+		// because the existing tool loop below reads browser state
+		// for any tool name starting with "browser.".
+		if hasToolsCapability {
+			pluginTools, err := tools.LoadPluginTools(ctx, tools.PluginToolsURLFromEnv(), tools.PluginExecutorURLFromEnv())
+			if err != nil {
+				s.log().Warn("plugin tools unavailable, continuing chat without plugin tools", "error", err)
+			} else {
+				// @ mention rule: if the prompt contains any @ mention,
+				// only the mentioned enabled plugins are registered
+				// for this turn. A mention of a non-enabled plugin
+				// registers nothing for that plugin, and it never
+				// turns a plugin on. If there is no @ mention, all
+				// enabled plugins are registered, as before.
+				if tools.HasMention(req.Prompt) {
+					enabledNames := []string{}
+					seenNames := map[string]bool{}
+					for _, pluginTool := range pluginTools {
+						if !seenNames[pluginTool.Plugin] {
+							seenNames[pluginTool.Plugin] = true
+							enabledNames = append(enabledNames, pluginTool.Plugin)
+						}
+					}
+					mentioned := tools.MentionedPlugins(req.Prompt, enabledNames)
+					mentionedSet := map[string]bool{}
+					for _, name := range mentioned {
+						mentionedSet[name] = true
+					}
+					filtered := []*tools.PluginTool{}
+					for _, pluginTool := range pluginTools {
+						if mentionedSet[pluginTool.Plugin] {
+							filtered = append(filtered, pluginTool)
+						}
+					}
+					pluginTools = filtered
+				}
+				for _, pluginTool := range pluginTools {
+					registry.Register(pluginTool)
+					if browser == nil && strings.HasPrefix(pluginTool.Name(), "browser.") {
+						browserState, ok := s.browserState(chat)
+						if !ok {
+							browserState = reconstructBrowserState(chat.Messages, tools.DefaultViewTokens)
+						}
+						browser = tools.NewBrowser(browserState)
+					}
+				}
+			}
+		}
 	}
 
 	var thinkingTimeStart *time.Time = nil
@@ -966,9 +1020,40 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 	// inject them into the next request, and attach on first assistant content/thinking.
 	var pendingAssistantToolCalls []store.ToolCall
 
+	// Text-JSON fallback guard: the index of each assistant message
+	// already converted from plain JSON text into a tool call, so
+	// one such message can only trigger once, never loop on itself
+	// in the next pass. A new assistant message in the next pass is
+	// a different index, so a model that repeats the same JSON gets
+	// a fresh, single conversion for that new message.
+	textJSONConverted := map[int]bool{}
+
+	// Loop guard: tool calls are counted per turn, by resolved
+	// name plus arguments JSON. The third identical call in one
+	// turn is not executed again, the turn stops instead, so a
+	// model that repeats a call cannot open another tab or click
+	// again. Passes are capped at 10 for the same reason: the
+	// loop used to break only when no tools executed, so a
+	// repeating model never stopped on its own.
+	toolCallCounts := map[string]int{}
+	stopTurn := false
+	recordToolCall := func(name string, argsJSON string) bool {
+		key := name + "\x00" + argsJSON
+		toolCallCounts[key]++
+		return toolCallCounts[key] >= 3
+	}
+
 	passNum := 1
 
 	for {
+		if passNum > 10 {
+			note := store.NewMessage("assistant", "Stopping this turn: the tool pass limit of 10 was reached. No further tool call was made.", nil)
+			chat.Messages = append(chat.Messages, note)
+			if err := s.Store.AppendMessage(chat.ID, note); err != nil {
+				return err
+			}
+			break
+		}
 		var toolsExecuted bool
 
 		availableTools := registry.AvailableTools()
@@ -1110,8 +1195,38 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 				}
 
 				for _, toolCall := range res.Message.ToolCalls {
+					if stopTurn {
+						continue
+					}
 					// continues loop as tools were executed
 					toolsExecuted = true
+					argsJSON, _ := json.Marshal(toolCall.Function.Arguments.ToMap())
+					if recordToolCall(toolCall.Function.Name, string(argsJSON)) {
+						stopTurn = true
+						noteContent := fmt.Sprintf("Stopping this turn: the same tool call was repeated 3 times: %s with these arguments. No further tool call was made for it.", toolCall.Function.Name)
+						noteMsg := store.NewMessage("tool", noteContent, nil)
+						noteMsg.ToolName = toolCall.Function.Name
+						chat.Messages = append(chat.Messages, noteMsg)
+						if err := s.Store.AppendMessage(chat.ID, noteMsg); err != nil {
+							return err
+						}
+						toolResult := true
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName: "tool",
+							Content:   &noteContent,
+							ToolName:  &toolCall.Function.Name,
+						})
+						flusher.Flush()
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName:      "tool_result",
+							Content:        &noteContent,
+							ToolName:       &toolCall.Function.Name,
+							ToolResult:     &toolResult,
+							ToolResultData: nil,
+						})
+						flusher.Flush()
+						continue
+					}
 					result, content, err := registry.Execute(ctx, toolCall.Function.Name, toolCall.Function.Arguments.ToMap())
 					if err != nil {
 						errContent := fmt.Sprintf("Error: %v", err)
@@ -1149,14 +1264,31 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 						// We still persist tool msg with content below.
 						// (No browser state update needed for standalone.)
 					} else if strings.HasPrefix(toolCall.Function.Name, "browser") {
-						stateBytes, err := json.Marshal(browser.State())
-						if err != nil {
-							return fmt.Errorf("failed to marshal browser state: %w", err)
+						// Built-in browser tools (browser.search, browser.open,
+						// browser.find) keep the state-only flow: the readable
+						// content above is what the model sees. Plugin browser
+						// tools (browser.webmcp.*, with a second dot) also get
+						// their result added to the tool message below, or the
+						// model never sees the result and the turn stalls after
+						// the raw tool call.
+						if browser != nil {
+							stateBytes, err := json.Marshal(browser.State())
+							if err != nil {
+								return fmt.Errorf("failed to marshal browser state: %w", err)
+							}
+							if err := s.Store.UpdateChatBrowserState(chat.ID, json.RawMessage(stateBytes)); err != nil {
+								return fmt.Errorf("failed to persist browser state to chat: %w", err)
+							}
 						}
-						if err := s.Store.UpdateChatBrowserState(chat.ID, json.RawMessage(stateBytes)); err != nil {
-							return fmt.Errorf("failed to persist browser state to chat: %w", err)
+						if strings.HasPrefix(toolCall.Function.Name, "browser.webmcp.") {
+							var err error
+							tr, err = json.Marshal(result)
+							if err != nil {
+								return fmt.Errorf("failed to marshal tool result: %w", err)
+							}
 						}
-						// tool result is not added to the tool message for the browser tool
+						// tool result is not added to the tool message for
+						// the built-in browser tools, only for plugin ones
 					} else {
 						var err error
 						tr, err = json.Marshal(result)
@@ -1294,6 +1426,183 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 			json.NewEncoder(w).Encode(errorEvent)
 			flusher.Flush()
 			return nil
+		}
+
+		// Text-JSON fallback: some models write a tool call as
+		// plain assistant text that is exactly one JSON object,
+		// for example {"name": "cua.create_tab", "arguments": {...}},
+		// instead of a structured tool call. The structured loop
+		// above never fires for that text, so the turn stalls.
+		// Only an exact object triggers this: text plus JSON, a
+		// code block, or a JSON array do not. An unknown name is
+		// left as chat text, exactly as today, so a made-up tool
+		// such as computer.open_url is never invented into a real
+		// one. An ambiguous name reports its candidates as a tool
+		// error and runs nothing. A resolved name runs exactly
+		// once here, appends a tool message, and continues the
+		// loop so the model can answer from the result, the same
+		// way a structured call does. PluginTool.Execute still
+		// applies the confirmation gate, so a risky text-JSON
+		// call returns confirmation_required as an error, never
+		// as success. The converted index guard above means this
+		// same assistant message cannot trigger again next pass,
+		// because a tool message now follows it.
+		if !toolsExecuted && len(chat.Messages) > 0 {
+			idx := len(chat.Messages) - 1
+			last := chat.Messages[idx]
+			if last.Role == "assistant" && !textJSONConverted[idx] {
+				if call, ok := tools.ParseTextJSONToolCall(last.Content); ok {
+					if fullName, resolveErr := registry.ResolveName(call.Name); resolveErr == nil {
+						textJSONConverted[idx] = true
+						toolsExecuted = true
+						var result any
+						var content string
+						var execErr error
+						argsJSON, _ := json.Marshal(call.Args)
+						if recordToolCall(fullName, string(argsJSON)) {
+							stopTurn = true
+							execErr = fmt.Errorf("same tool call repeated 3 times, turn stopping: %s", fullName)
+						} else {
+							// Render this converted call exactly
+							// once, as a structured tool call, not
+							// as a block of JSON text. The frontend
+							// renders both content and tool_calls,
+							// so the JSON text must be cleared, or
+							// the same call would show twice. The
+							// stored message is updated, and the
+							// in-memory message too, so the next
+							// pass sends a structured tool call,
+							// not the JSON text again.
+							last.ToolCalls = []store.ToolCall{{
+								Type: "function",
+								Function: store.ToolFunction{
+									Name:      fullName,
+									Arguments: string(argsJSON),
+								},
+							}}
+							last.Content = ""
+							chat.Messages[idx] = last
+							if err := s.Store.UpdateLastMessage(chat.ID, last); err != nil {
+								return err
+							}
+							result, content, execErr = registry.Execute(ctx, fullName, call.Args)
+						}
+						if execErr != nil {
+							errContent := fmt.Sprintf("Error: %v", execErr)
+							toolErrMsg := store.NewMessage("tool", errContent, nil)
+							toolErrMsg.ToolName = fullName
+							chat.Messages = append(chat.Messages, toolErrMsg)
+							if err := s.Store.AppendMessage(chat.ID, toolErrMsg); err != nil {
+								return err
+							}
+							toolResult := true
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName: "tool",
+								Content:   &errContent,
+								ToolName:  &fullName,
+							})
+							flusher.Flush()
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName:      "tool_result",
+								Content:        &errContent,
+								ToolName:       &fullName,
+								ToolResult:     &toolResult,
+								ToolResultData: nil,
+							})
+							flusher.Flush()
+						} else {
+							var tr json.RawMessage
+							if strings.HasPrefix(fullName, "browser") && fullName != "browser.search" {
+								if browser != nil {
+									if stateBytes, err := json.Marshal(browser.State()); err == nil {
+										_ = s.Store.UpdateChatBrowserState(chat.ID, json.RawMessage(stateBytes))
+									}
+								}
+								if strings.HasPrefix(fullName, "browser.webmcp.") {
+									if encoded, err := json.Marshal(result); err == nil {
+										tr = encoded
+									}
+								}
+							} else {
+								if encoded, err := json.Marshal(result); err == nil {
+									tr = encoded
+								}
+							}
+							modelContent := content
+							if fullName == "web_fetch" && modelContent == "" {
+								if str, ok := result.(string); ok {
+									modelContent = str
+								}
+							}
+							if modelContent == "" && len(tr) > 0 {
+								modelContent = string(tr)
+							}
+							toolMsg := store.NewMessage("tool", modelContent, &store.MessageOptions{
+								ToolResult: &tr,
+							})
+							toolMsg.ToolName = fullName
+							chat.Messages = append(chat.Messages, toolMsg)
+							if err := s.Store.AppendMessage(chat.ID, toolMsg); err != nil {
+								return err
+							}
+							toolResult := true
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName: "tool",
+								Content:   &content,
+								ToolName:  &fullName,
+							})
+							flusher.Flush()
+							var toolState any = nil
+							if browser != nil {
+								toolState = browser.State()
+							}
+							json.NewEncoder(w).Encode(responses.ChatEvent{
+								EventName:      "tool_result",
+								Content:        &content,
+								ToolName:       &fullName,
+								ToolResult:     &toolResult,
+								ToolResultData: result,
+								ToolState:      toolState,
+							})
+							flusher.Flush()
+						}
+					} else if strings.Contains(resolveErr.Error(), "ambiguous") {
+						textJSONConverted[idx] = true
+						toolsExecuted = true
+						errContent := fmt.Sprintf("Error: %v", resolveErr)
+						toolErrMsg := store.NewMessage("tool", errContent, nil)
+						toolErrMsg.ToolName = call.Name
+						chat.Messages = append(chat.Messages, toolErrMsg)
+						if err := s.Store.AppendMessage(chat.ID, toolErrMsg); err != nil {
+							return err
+						}
+						toolResult := true
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName: "tool",
+							Content:   &errContent,
+							ToolName:  &call.Name,
+						})
+						flusher.Flush()
+						json.NewEncoder(w).Encode(responses.ChatEvent{
+							EventName:      "tool_result",
+							Content:        &errContent,
+							ToolName:       &call.Name,
+							ToolResult:     &toolResult,
+							ToolResultData: nil,
+						})
+						flusher.Flush()
+					}
+					// Unknown name: leave the message as chat text,
+					// as today, and fall through to break below.
+				}
+			}
+		}
+
+		// A repeat or pass-limit stop ends the turn here, even
+		// though a tool message was appended, so the model does
+		// not get another pass to repeat the call again.
+		if stopTurn {
+			break
 		}
 
 		// If no tools were executed, exit the loop

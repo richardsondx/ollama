@@ -12,6 +12,7 @@ import {
   useChatError,
   useShouldShowStaleDisplay,
   useDismissStaleModel,
+  useCancelMessage,
 } from "@/hooks/useChats";
 import { useHealth } from "@/hooks/useHealth";
 import { useMessageAutoscroll } from "@/hooks/useMessageAutoscroll";
@@ -98,6 +99,58 @@ export default function Chat({ chatId }: { chatId: string }) {
   }, [chatId]);
 
   const sendMessageMutation = useSendMessage(chatId);
+  const cancelMessage = useCancelMessage();
+
+  // Control banner: which browser or computer tool is running in
+  // the current turn, if any. Only messages after the last user
+  // message belong to the current turn, so a tool call from an
+  // earlier turn never keeps the banner up. The banner shows
+  // only while streaming, which is the turn-active signal the
+  // UI already has, and it disappears when the turn ends. The
+  // Stop button reuses the existing cancel mechanism, the same
+  // one the composer stop button uses. This is a banner inside
+  // the Ollamapaca window only. Ollamapaca does not capture
+  // the screen, so it is not a macOS "Currently Sharing"
+  // indicator, and it never claims to be one.
+  const controlInfo = (() => {
+    if (!isStreaming) {
+      return null;
+    }
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i] as any;
+      if (message?.role === "user") {
+        break;
+      }
+      const calls = message?.tool_calls as Array<any> | undefined;
+      if (calls) {
+        for (let j = calls.length - 1; j >= 0; j--) {
+          const name = calls[j]?.function?.name as string | undefined;
+          if (name && (name.startsWith("browser.") || name.startsWith("computer."))) {
+            let target = name.startsWith("browser.") ? "Chrome" : "your computer";
+            try {
+              const args = JSON.parse(calls[j].function.arguments || "{}");
+              if (typeof args.app === "string" && args.app) {
+                target = args.app;
+              }
+            } catch {
+              // Keep the fallback target if arguments do not parse.
+            }
+            return { target, name };
+          }
+        }
+      }
+      if (message?.role === "tool") {
+        const toolName = (message.tool_name || message.toolName) as string | undefined;
+        if (toolName && (toolName.startsWith("browser.") || toolName.startsWith("computer."))) {
+          return {
+            target: toolName.startsWith("browser.") ? "Chrome" : "your computer",
+            name: toolName,
+          };
+        }
+      }
+    }
+    return null;
+  })();
 
   const { containerRef, handleNewUserMessage, spacerHeight } =
     useMessageAutoscroll({
@@ -259,6 +312,22 @@ export default function Chat({ chatId }: { chatId: string }) {
             {chatError && chatError.code === "cloud_unauthorized" && (
               <div className="pb-2">
                 <DisplayLogin error={chatError} />
+              </div>
+            )}
+            {controlInfo && (
+              <div className="pb-2">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                  <span>
+                    Controlling {controlInfo.target} - {controlInfo.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => cancelMessage(chatId)}
+                    className="shrink-0 rounded-full bg-black px-3 py-1 text-white dark:bg-white dark:text-black"
+                  >
+                    Stop
+                  </button>
+                </div>
               </div>
             )}
             <ChatForm

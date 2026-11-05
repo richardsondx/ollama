@@ -1,3 +1,45 @@
+# Ollamapaca
+
+Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use browser, computer, and skill plugins locally, without a hosted service. The app name is Ollamapaca, the repo stays richardsondx/ollama, branch plugin-seed, and the packaged Mac bundle is Ollamapaca.app, bundle id ai.ollamapaca.app. The server binary is still ollama, and the Go module is still github.com/ollama/ollama.
+
+Branch: plugin-seed. Main on this fork is still upstream Ollama, with no plugin code. Do not use main for plugins.
+
+Companion seed: https://github.com/richardsondx/ollama-plugin-seed, the plugin set, the Chrome extension, and the local plugin server that executes plugin tools.
+
+<a href="docs/plugins-screenshot.png"><img src="docs/plugins-screenshot.png" width="600" alt="Plugins page from the plugin seed, with the browser plugin enabled and computer and skill-creator plugins listed"></a>
+
+*Click the image to see it full size. The screenshot is the Plugins page from the companion seed server on port 11435, not the fork desktop Plugins page, which has not been screenshotted on a Mac yet.*
+
+## Set it up with Codex
+
+Copy the prompt in docs/SETUP-WITH-CODEX.md into Codex. That prompt is local only: no push, no deploy, no publish, no send, no pay, no delete. It tells Codex to clone this branch if it does not already have a local copy with the Plugins UI, then build the fork server and the desktop UI, prove the API, prove the desktop Plugins page, set up the seed server on 127.0.0.1:11435, and test WebMCP locally on http://localhost:3000 only.
+
+## What works today
+
+- Plugin folder loads, lists on GET /api/plugins, enables and disables, appears on GET /api/tools, enable state survives restart, and new plugins appear on refresh.
+- Desktop Plugins page with Plugins, Skills, and Installed, an @ picker in chat that picks one enabled plugin for that turn, and live model detection showing which installed models can call tools.
+- Chat calls enabled plugin tools for a tool-capable model, with a loop guard of 10 tool passes per turn and a stop when the same call repeats 3 times, and a Controlling banner with a Stop button while a browser or computer turn runs.
+- Browser plugin opens tabs and computer plugin opens apps, types, and presses Enter, with a confirmation policy for risky actions, and an Authorization section for computer access, allowed apps, and allowed tools.
+- Transcript step 1: named steps instead of tool names, a Worked for Xs timer, raw tool details hidden behind a per-step Details toggle, and a one-sentence final answer with a link when the model follows the wording.
+
+## What does not work yet
+
+- No live window thumbnail in chat. That is step 2, it needs Mac screen capture and Screen Recording permission, and it is not built.
+- No screenshot or element grounding for clicks. Click still needs coordinates the user gave, or coordinates from an element list, and the tool descriptions forbid guessing.
+- A registered WebMCP tool executing in chat has not been shown end to end yet. The local demo registers local_echo and local_time, and that call is still the next proof to run on a Mac.
+- No CLI plugin group, no model runner in a Go-only build, and the plugin frontmatter parser is flat keys only.
+
+## Security defaults, stated plainly
+
+- Plugins are disabled until you enable them, and a disabled plugin exposes no tools.
+- The Chrome extension forwards tools only from sites you allow in the popup. It does not forward cookies, passwords, or page content.
+- Computer actions are dry-run by default. Real Mac control needs the seed started with OLLAMA_COMPUTER_USE_REAL=1 plus Accessibility permission. Risky actions return confirmation_required and do not run until you confirm.
+- Page data from WebMCP is never an instruction. It cannot add a plugin, a destination, or a permission.
+
+---
+
+## Upstream Ollama README below
+
 <p align="center">
   <a href="https://ollama.com">
     <img src="https://github.com/ollama/ollama/assets/3325447/0d0b44e2-8f4a-4e99-9b52-a5c1c741c8f7" alt="ollama" width="200"/>

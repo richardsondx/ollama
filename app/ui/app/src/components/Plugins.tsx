@@ -1,0 +1,775 @@
+import { useEffect, useMemo, useState } from "react";
+import { API_BASE } from "@/lib/config";
+import {
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline";
+
+type PluginTool = {
+  name: string;
+  description: string;
+};
+
+type Plugin = {
+  name: string;
+  description: string;
+  version: string;
+  tools: PluginTool[];
+  skills: string[];
+  enabled: boolean;
+};
+
+type Tab = "plugins" | "skills" | "installed";
+
+export function PluginIcon({ name, size = 32 }: { name: string; size?: number }) {
+  const common = { width: size, height: size, viewBox: "0 0 48 48" } as const;
+  if (name === "browser") {
+    return (
+      <svg {...common}>
+        <circle cx="24" cy="24" r="20" fill="#fff" />
+        <path d="M24 4 A20 20 0 0 1 41.3 34 L24 24 Z" fill="#EA4335" />
+        <path d="M41.3 34 A20 20 0 0 1 6.7 34 L24 24 Z" fill="#FBBC05" />
+        <path d="M6.7 34 A20 20 0 0 1 24 4 L24 24 Z" fill="#34A853" />
+        <circle cx="24" cy="24" r="10" fill="#4285F4" stroke="#fff" strokeWidth="3" />
+      </svg>
+    );
+  }
+  if (name === "computer") {
+    return (
+      <svg {...common}>
+        <defs>
+          <linearGradient id="cu" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#38bdf8" />
+            <stop offset="0.5" stopColor="#a78bfa" />
+            <stop offset="1" stopColor="#f472b6" />
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="44" height="44" rx="11" fill="url(#cu)" />
+        <rect x="9" y="11" width="30" height="20" rx="3" fill="#fff" />
+        <circle cx="14" cy="16" r="2" fill="#f43f5e" />
+        <circle cx="20" cy="16" r="2" fill="#f59e0b" />
+        <circle cx="26" cy="16" r="2" fill="#22c55e" />
+        <rect x="13" y="21" width="14" height="3" rx="1.5" fill="#c4b5fd" />
+        <rect x="13" y="26" width="9" height="2" rx="1" fill="#e5e7eb" />
+        <path d="M30 33l5 2-2 5 2 2-2 1-2-2-2 3z" fill="#111" />
+        <rect x="20" y="33" width="8" height="3" rx="1.5" fill="#fff" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <rect x="4" y="4" width="40" height="40" rx="8" fill="#e9d5ff" />
+      <path d="M18 14h12v6a3 3 0 0 1 6 0v6h-6a3 3 0 0 1 0 6v6H18v-6a3 3 0 0 1-6 0v-6h6a3 3 0 0 1 0-6v-6z" fill="#7c3aed" />
+    </svg>
+  );
+}
+
+function examplesFor(name: string): string[] {
+  if (name === "browser") return ["Browser: create a tab for https://google.com", "Browser: list the tools on the page I allowed"];
+  if (name === "computer") return ["Computer: open Chrome", "Computer: list the apps I can control"];
+  if (name === "skill-creator") return ["Skill: validate a new skill folder before I share it", "Skill: check a SKILL.md frontmatter name matches its folder"];
+  return ["Use " + name + " from Ollama, locally only"];
+}
+
+async function fetchPlugins(): Promise<Plugin[]> {
+  const response = await fetch(`${API_BASE}/api/plugins`);
+  if (!response.ok) {
+    throw new Error(`Plugins server answered ${response.status}`);
+  }
+  const data = await response.json();
+  return (data.plugins || []) as Plugin[];
+}
+
+type ModelCheck = {
+  name: string;
+  status: "works" | "wont" | "unknown";
+};
+
+type Authorization = {
+  computer: { mode: string; dry_run: boolean; real_requested: boolean };
+  enabled_plugins: string[];
+  allowed_apps: string[];
+  app_restriction_active: boolean;
+  allowed_tools: Record<string, boolean>;
+  disallowed_tools: string[];
+  sites: string[];
+  localhost_auto_allowed: boolean;
+};
+
+// The seed authorization endpoint lives on 11435, not on the fork
+// server on 11434, so it is fetched directly here. If the seed is
+// not running, this section shows a plain note and nothing else
+// on the page breaks.
+const SEED_BASE = "http://127.0.0.1:11435";
+
+async function fetchAuthorization(): Promise<Authorization> {
+  const response = await fetch(`${SEED_BASE}/api/authorization`);
+  if (!response.ok) {
+    throw new Error(`Authorization answered ${response.status}`);
+  }
+  return (await response.json()) as Authorization;
+}
+
+async function checkOneModel(name: string): Promise<ModelCheck> {
+  try {
+    const response = await fetch(`${API_BASE}/api/show`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: name }),
+    });
+    if (!response.ok) {
+      return { name, status: "unknown" };
+    }
+    const data = await response.json();
+    const capabilities: string[] = Array.isArray(data.capabilities)
+      ? data.capabilities
+      : [];
+    return {
+      name,
+      status: capabilities.includes("tools") ? "works" : "wont",
+    };
+  } catch {
+    return { name, status: "unknown" };
+  }
+}
+
+async function fetchModelChecks(): Promise<ModelCheck[]> {
+  const response = await fetch(`${API_BASE}/api/tags`);
+  if (!response.ok) {
+    throw new Error(`Model list answered ${response.status}`);
+  }
+  const data = await response.json();
+  const models: { name: string }[] = Array.isArray(data.models)
+    ? data.models
+    : [];
+  const checks = await Promise.all(
+    models
+      .map((m) => m.name)
+      .filter((name) => typeof name === "string" && name.length > 0)
+      .map((name) => checkOneModel(name)),
+  );
+  return checks;
+}
+
+export default function Plugins() {
+  const [plugins, setPlugins] = useState<Plugin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("plugins");
+  const [query, setQuery] = useState("");
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [modelChecks, setModelChecks] = useState<ModelCheck[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [auth, setAuth] = useState<Authorization | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authResult, setAuthResult] = useState<string | null>(null);
+  const [newApp, setNewApp] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await fetchPlugins();
+      setPlugins(list);
+      if (!selectedName && list.length > 0) {
+        setSelectedName(list[0].name);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load plugins");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadModels = async () => {
+      setModelsLoading(true);
+      setModelsError(null);
+      try {
+        const checks = await fetchModelChecks();
+        if (!cancelled) {
+          setModelChecks(checks);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setModelsError(
+            err instanceof Error ? err.message : "Could not check models",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setModelsLoading(false);
+        }
+      }
+    };
+    void loadModels();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let list = plugins;
+    if (tab === "installed") {
+      list = list.filter((p) => p.enabled);
+    }
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [plugins, tab, query]);
+
+  const selected =
+    plugins.find((p) => p.name === selectedName) || visible[0] || null;
+
+  const toggle = async (plugin: Plugin) => {
+    setBusy(true);
+    try {
+      const action = plugin.enabled ? "disable" : "enable";
+      const response = await fetch(
+        `${API_BASE}/api/plugins/${plugin.name}/${action}`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        throw new Error(`Could not ${action} ${plugin.name}`);
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not change plugin");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadAuth = async () => {
+    setAuthError(null);
+    try {
+      setAuth(await fetchAuthorization());
+    } catch {
+      setAuth(null);
+      setAuthError(
+        "The seed server on 11435 is not reachable, so computer status is unavailable. Plugin list, enable, disable, and chat still work.",
+      );
+    }
+  };
+
+  useEffect(() => {
+    void loadAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const requestAccess = async () => {
+    setAuthResult(null);
+    try {
+      const response = await fetch(
+        `${SEED_BASE}/api/authorization/request-computer-access`,
+        { method: "POST" },
+      );
+      const data = await response.json();
+      if (data.granted) {
+        setAuthResult("Computer access appears granted.");
+      } else {
+        setAuthResult(
+          data.instructions || data.reason || "Computer access is not granted.",
+        );
+      }
+      await loadAuth();
+    } catch {
+      setAuthResult("The seed server on 11435 is not reachable.");
+    }
+  };
+
+  const setAppAllowed = async (app: string, allowed: boolean) => {
+    try {
+      await fetch(`${SEED_BASE}/api/authorization/allowed-apps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ app, allowed }),
+      });
+      await loadAuth();
+    } catch {
+      setAuthError("The seed server on 11435 is not reachable.");
+    }
+  };
+
+  const setToolAllowed = async (
+    plugin: string,
+    tool: string,
+    allowed: boolean,
+  ) => {
+    try {
+      await fetch(`${SEED_BASE}/api/authorization/allowed-tools`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plugin, tool, allowed }),
+      });
+      await loadAuth();
+    } catch {
+      setAuthError("The seed server on 11435 is not reachable.");
+    }
+  };
+
+  const tabClass = (t: Tab) =>
+    `rounded-full px-3 py-1.5 text-sm ${
+      tab === t
+        ? "bg-neutral-900 text-white dark:bg-white dark:text-black"
+        : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+    }`;
+
+  return (
+    <div className="flex min-h-0 flex-1 bg-white text-neutral-900 dark:bg-neutral-900 dark:text-white">
+      <aside className="flex w-72 flex-none flex-col border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950/40">
+        <div className="border-b border-neutral-200 px-4 py-4 dark:border-neutral-800">
+          <h2 className="text-base font-medium">Plugins</h2>
+          <div className="mt-3 flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900">
+            <MagnifyingGlassIcon className="h-4 w-4 text-neutral-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search plugins"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-neutral-400"
+            />
+          </div>
+          <div className="mt-3 flex gap-1">
+            <button className={tabClass("plugins")} onClick={() => setTab("plugins")}>
+              Plugins
+            </button>
+            <button className={tabClass("skills")} onClick={() => setTab("skills")}>
+              Skills
+            </button>
+            <button
+              className={tabClass("installed")}
+              onClick={() => setTab("installed")}
+            >
+              Installed
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {loading && (
+            <p className="px-2 py-4 text-sm text-neutral-500">
+              Loading plugins…
+            </p>
+          )}
+          {!loading && visible.length === 0 && (
+            <p className="px-2 py-4 text-sm text-neutral-500">
+              {tab === "installed"
+                ? "No plugins enabled yet. Open a plugin and enable it."
+                : "No plugins found."}
+            </p>
+          )}
+          {visible.map((plugin) => (
+            <button
+              key={plugin.name}
+              onClick={() => {
+                setSelectedName(plugin.name);
+                if (tab === "skills") setTab("plugins");
+              }}
+              className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                selected?.name === plugin.name
+                  ? "bg-neutral-100 dark:bg-neutral-800"
+                  : ""
+              }`}
+            >
+              <span className="flex h-8 w-8 flex-none items-center justify-center">
+                <PluginIcon name={plugin.name} size={32} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
+                  {plugin.name}
+                </span>
+                <span className="block truncate text-xs text-neutral-500">
+                  {plugin.enabled ? "Enabled" : "Not enabled"} ·{" "}
+                  {plugin.tools.length} tools
+                </span>
+              </span>
+            </button>
+          ))}
+          {tab === "skills" && (
+            <div className="mt-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
+              {plugins.map((plugin) =>
+                plugin.skills.map((skill) => (
+                  <p key={skill} className="py-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    {skill}
+                  </p>
+                )),
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <section className="min-w-0 flex-1 overflow-y-auto px-8 py-6">
+        {error && (
+          <p className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+            {error} The plugin server needs a plugin folder. Set
+            OLLAMA_PLUGINS_DIR, restart Ollama, and open this page again.
+          </p>
+        )}
+        {!selected && !loading && (
+          <div>
+            <h3 className="text-lg font-medium">No plugins yet</h3>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+              Add a plugin folder with a plugin.json manifest and a SKILL.md
+              file, point OLLAMA_PLUGINS_DIR at its parent folder, and restart
+              Ollama. This page lists what the server finds, it does not
+              install plugins from the web.
+            </p>
+          </div>
+        )}
+        {selected && (
+          <div className="max-w-3xl">
+            <p className="text-sm text-neutral-500">
+              Plugins &gt; {selected.name}
+            </p>
+            <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <span className="flex h-12 w-12 flex-none items-center justify-center">
+                  <PluginIcon name={selected.name} size={48} />
+                </span>
+                <div>
+                  <h3 className="text-xl font-medium">{selected.name}</h3>
+                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    {selected.description}
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Version {selected.version || "0.0.0"} ·{" "}
+                    {selected.enabled ? "Enabled" : "Not enabled"}
+                  </p>
+                </div>
+              </div>
+              <button
+                disabled={busy}
+                onClick={() => void toggle(selected)}
+                className="rounded-full bg-black px-4 py-2 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black"
+              >
+                {selected.enabled ? "Disable" : "Enable"}
+              </button>
+            </div>
+
+            <div className="mt-6 flex flex-col items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 px-5 py-6 dark:from-neutral-800 dark:via-neutral-800 dark:to-neutral-800">
+              {examplesFor(selected.name).map((example) => (
+                <span key={example} className="rounded-full bg-white px-4 py-2 text-sm shadow-sm dark:bg-neutral-900">
+                  {example} →
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-6 rounded-2xl bg-neutral-100 px-5 py-4 dark:bg-neutral-800">
+              <p className="text-sm font-medium">Try it in chat</p>
+              <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                Enabling a plugin lists its tools at /api/tools, and chat now
+                calls those tools for a tool-capable model. Type @ in chat to
+                pick one enabled plugin for that turn.
+              </p>
+            </div>
+
+            <div className="mt-6 rounded-2xl bg-neutral-100 px-5 py-4 dark:bg-neutral-800">
+              <p className="text-sm font-medium">Model compatibility</p>
+              <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                This plugin needs a model that can call tools. The lists
+                below are checked from your installed models right now, not
+                from a fixed list: a model is listed as working only when
+                its own capabilities include tools.
+              </p>
+              {modelsLoading && (
+                <p className="mt-3 text-sm text-neutral-500">
+                  Checking models…
+                </p>
+              )}
+              {!modelsLoading && modelsError && (
+                <p className="mt-3 text-sm text-neutral-500">
+                  Models could not be checked. The plugin list, enable, and
+                  disable still work, and chat is not affected.
+                </p>
+              )}
+              {!modelsLoading && !modelsError && modelChecks.length === 0 && (
+                <p className="mt-3 text-sm text-neutral-500">
+                  No models are installed yet, so there is nothing to check.
+                </p>
+              )}
+              {!modelsLoading && !modelsError && modelChecks.length > 0 && (
+                <>
+                  <p className="mt-3 text-sm font-medium">
+                    Works with plugins
+                  </p>
+                  {modelChecks.filter((m) => m.status === "works").length ===
+                  0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {modelChecks
+                        .filter((m) => m.status === "works")
+                        .map((m) => (
+                          <li key={m.name} className="text-sm">
+                            {m.name}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                  <p className="mt-3 text-sm font-medium">
+                    Won&apos;t work with plugins
+                  </p>
+                  {modelChecks.filter((m) => m.status === "wont").length ===
+                  0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {modelChecks
+                        .filter((m) => m.status === "wont")
+                        .map((m) => (
+                          <li key={m.name} className="text-sm">
+                            {m.name}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                  <p className="mt-3 text-sm font-medium">Unknown</p>
+                  {modelChecks.filter((m) => m.status === "unknown")
+                    .length === 0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {modelChecks
+                        .filter((m) => m.status === "unknown")
+                        .map((m) => (
+                          <li key={m.name} className="text-sm">
+                            {m.name}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </>
+              )}
+              <p className="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                Works means the model can call tools, it does not guarantee
+                it will never invent a tool, so still test first by asking
+                for list_tools, and if it names a tool list_tools did not
+                return, that tool does not exist.
+              </p>
+            </div>
+
+            <h4 className="mt-8 text-base font-medium">Setup</h4>
+            <div className="mt-3 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+              {selected.tools.length === 0 && (
+                <p className="px-4 py-3 text-sm text-neutral-500">
+                  This plugin declares no tools.
+                </p>
+              )}
+              {selected.tools.map((tool) => (
+                <div
+                  key={tool.name}
+                  className="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 last:border-b-0 dark:border-neutral-700"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{tool.name}</p>
+                    <p className="text-sm text-neutral-500">
+                      {tool.description}
+                    </p>
+                  </div>
+                  <span className="flex-none rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    Tool
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <h4 className="mt-8 text-base font-medium">Skills</h4>
+            <div className="mt-3 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+              {selected.skills.map((skill) => (
+                <div
+                  key={skill}
+                  className="flex items-center justify-between px-4 py-3"
+                >
+                  <p className="text-sm">{skill}</p>
+                  <ChevronRightIcon className="h-4 w-4 text-neutral-400" />
+                </div>
+              ))}
+            </div>
+
+            <h4 className="mt-8 text-base font-medium">Information</h4>
+            <dl className="mt-3 divide-y divide-neutral-200 rounded-xl border border-neutral-200 dark:divide-neutral-700 dark:border-neutral-700">
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Developer</dt>
+                <dd>Ollama plugin fork, local only</dd>
+              </div>
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Category</dt>
+                <dd>Productivity</dd>
+              </div>
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Plugin</dt>
+                <dd>{selected.name}</dd>
+              </div>
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Version</dt>
+                <dd>{selected.version || "0.0.0"}</dd>
+              </div>
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Tools</dt>
+                <dd>{selected.tools.length}</dd>
+              </div>
+              <div className="flex justify-between px-4 py-3 text-sm">
+                <dt className="text-neutral-500">Status</dt>
+                <dd>{selected.enabled ? "Enabled" : "Not enabled"}</dd>
+              </div>
+            </dl>
+
+            <h4 className="mt-8 text-base font-medium">Authorization</h4>
+            <div className="mt-3 rounded-2xl bg-neutral-100 px-5 py-4 dark:bg-neutral-800">
+              <p className="text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                One place to grant, see, and revoke tool, app, and site
+                permissions. Enabling a plugin is still the master switch.
+                Authorization does not bypass confirmation for risky
+                actions, and Ollamapaca cannot grant macOS Accessibility
+                itself, it can only request and recheck it.
+              </p>
+              {authError && (
+                <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
+                  {authError}
+                </p>
+              )}
+              {auth && (
+                <>
+                  <p className="mt-3 text-sm font-medium">Computer access</p>
+                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    Mode: {auth.computer.mode} · Real requested:{" "}
+                    {auth.computer.real_requested ? "yes" : "no"}
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => void requestAccess()}
+                      className="rounded-full bg-black px-4 py-2 text-sm text-white dark:bg-white dark:text-black"
+                    >
+                      Request computer access
+                    </button>
+                    <button
+                      onClick={() => void loadAuth()}
+                      className="rounded-full border border-neutral-300 px-4 py-2 text-sm dark:border-neutral-600"
+                    >
+                      Recheck
+                    </button>
+                  </div>
+                  {authResult && (
+                    <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
+                      {authResult}
+                    </p>
+                  )}
+                  {!auth.computer.real_requested && (
+                    <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
+                      Real mode is off. Start the seed server on macOS with
+                      OLLAMA_COMPUTER_USE_REAL=1, then request access. On
+                      macOS, grant Accessibility in System Settings,
+                      Privacy and Security, Accessibility, to the app
+                      running the seed server, restart the seed, then
+                      recheck.
+                    </p>
+                  )}
+
+                  <p className="mt-4 text-sm font-medium">Allowed apps</p>
+                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    {auth.app_restriction_active
+                      ? "Restriction is on. Only apps listed here can be opened, clicked, or typed into."
+                      : "No app restriction yet. Adding an app turns the restriction on."}
+                  </p>
+                  {auth.allowed_apps.length === 0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {auth.allowed_apps.map((app) => (
+                        <li key={app} className="flex items-center justify-between gap-2 text-sm">
+                          <span>{app}</span>
+                          <button
+                            onClick={() => void setAppAllowed(app, false)}
+                            className="rounded-full border border-neutral-300 px-3 py-1 text-xs dark:border-neutral-600"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={newApp}
+                      onChange={(e) => setNewApp(e.target.value)}
+                      placeholder="App name, for example Google Chrome"
+                      className="w-full rounded-full border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-900"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newApp.trim()) {
+                          void setAppAllowed(newApp.trim(), true);
+                          setNewApp("");
+                        }
+                      }}
+                      className="flex-none rounded-full bg-black px-4 py-2 text-sm text-white dark:bg-white dark:text-black"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  <p className="mt-4 text-sm font-medium">Allowed tools</p>
+                  {["browser", "computer"].map((pluginName) => {
+                    const plugin = plugins.find((p) => p.name === pluginName);
+                    if (!plugin) return null;
+                    return (
+                      <div key={pluginName} className="mt-2">
+                        <p className="text-sm font-medium">{pluginName}</p>
+                        {plugin.tools.map((tool) => {
+                          const key = `${pluginName}.${tool.name}`;
+                          const allowed = auth.allowed_tools[key] !== false;
+                          return (
+                            <div key={key} className="flex items-center justify-between gap-2 py-1 text-sm">
+                              <span>{tool.name}</span>
+                              <button
+                                onClick={() => void setToolAllowed(pluginName, tool.name, !allowed)}
+                                className="rounded-full border border-neutral-300 px-3 py-1 text-xs dark:border-neutral-600"
+                              >
+                                {allowed ? "On" : "Off"}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  <p className="mt-4 text-sm font-medium">Allowed sites</p>
+                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    These are sites with registered WebMCP tools only. The
+                    Chrome popup is still the place that adds a remote
+                    site. Localhost and 127.0.0.1 are auto-allowed in
+                    local mode.
+                  </p>
+                  {auth.sites.length === 0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {auth.sites.map((site) => (
+                        <li key={site} className="text-sm">{site}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

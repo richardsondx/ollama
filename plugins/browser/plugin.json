@@ -1,0 +1,84 @@
+{
+  "name": "browser",
+  "description": "Browse pages through page-declared WebMCP tools for sites the user allowed, and control Chrome tabs through the debugging port. WebMCP page tools and tab tools are different: page tools only run what a page registered, tab tools open and list Chrome tabs directly, local only. Transcript: before the first tool call in a turn, say in one plain sentence what you are about to do. After a successful open, answer in one sentence naming the app, the site, and the URL as a link, and stop. Do not dump tool result JSON, and do not call more tools after success.",
+  "version": "0.1.0",
+  "tools": [
+    {
+      "name": "webmcp.list_tools",
+      "description": "List WebMCP tools registered by allowed sites.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "webmcp.execute_tool",
+      "description": "Call webmcp.list_tools first, and only call a tool list_tools returned, with its exact site origin. A site that did not register WebMCP tools cannot be controlled this way, and a tool list_tools did not return does not exist, even if it sounds plausible. Execute a WebMCP tool on the page that registered it, through the Chrome extension.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "site",
+          "tool"
+        ]
+      }
+    },
+    {
+      "name": "list_tabs",
+      "description": "List Chrome tabs through the debugging port at 127.0.0.1:9222. Error if the port is unreachable, never a pretend tab list.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "create_tab",
+      "description": "Open a Chrome tab with a URL. In Mac mode it uses the debugging port first, and falls back to opening Chrome with the URL if the port is unreachable, saying plainly which route was used. After a successful create_tab, do not call create_tab again for the same URL, and do not poll get_tab repeatedly. Answer that the tab is open. A tab that already exists for that URL is returned, not created again.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "browser": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    },
+    {
+      "name": "get_tab",
+      "description": "Get one Chrome tab by tab id or by a URL substring, through the debugging port. It returns title and URL only. Error if the port is unreachable or no tab matches. Do not poll get_tab repeatedly for the same tab.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "allowlist": {
+    "hosts": [
+      "127.0.0.1"
+    ],
+    "sites": "user-allowed only"
+  }
+}

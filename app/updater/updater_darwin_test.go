@@ -12,10 +12,10 @@ import (
 
 func TestDoUpgrade(t *testing.T) {
 	tmpDir := t.TempDir()
-	BundlePath = filepath.Join(tmpDir, "Ollama.app")
+	BundlePath = filepath.Join(tmpDir, "Ollamapaca.app")
 	appContents := filepath.Join(BundlePath, "Contents")
 	appBackupDir = filepath.Join(tmpDir, "backup")
-	appContentsOld := filepath.Join(appBackupDir, "Ollama.app", "Contents")
+	appContentsOld := filepath.Join(appBackupDir, "Ollamapaca.app", "Contents")
 	UpdateStageDir = filepath.Join(tmpDir, "updates")
 	UpgradeMarkerFile = filepath.Join(tmpDir, "upgraded")
 	bundle := filepath.Join(UpdateStageDir, "foo", "ollama-darwin.zip")
@@ -53,15 +53,15 @@ func TestDoUpgrade(t *testing.T) {
 	// Generate valid (partial) zip file for remaining scenarios
 	if err := zipCreationHelper(bundle, []testPayload{
 		{
-			Name: "Ollama.app/Contents/MacOS/Ollama",
+			Name: "Ollamapaca.app/Contents/MacOS/Ollamapaca",
 			Body: []byte("would be app binary"),
 		},
 		{
-			Name: "Ollama.app/Contents/Resources/ollama",
+			Name: "Ollamapaca.app/Contents/Resources/ollama",
 			Body: []byte("would be the cli"),
 		},
 		{
-			Name: "Ollama.app/Contents/Resources/dummy",
+			Name: "Ollamapaca.app/Contents/Resources/dummy",
 			Body: []byte("./ollama"),
 			Mode: os.ModeSymlink,
 		},
@@ -149,7 +149,7 @@ func TestDoUpgrade(t *testing.T) {
 
 func TestDoUpgradeRejectsInvalidBundlePath(t *testing.T) {
 	tmpDir := t.TempDir()
-	BundlePath = filepath.Join(tmpDir, "Ollama.app")
+	BundlePath = filepath.Join(tmpDir, "Ollamapaca.app")
 	appBackupDir = filepath.Join(tmpDir, "backup")
 	UpdateStageDir = filepath.Join(tmpDir, "updates")
 	UpgradeMarkerFile = filepath.Join(tmpDir, "upgraded")
@@ -166,7 +166,7 @@ func TestDoUpgradeRejectsInvalidBundlePath(t *testing.T) {
 		t.Fatal("failed to create empty dirs")
 	}
 	if err := zipCreationHelper(bundle, []testPayload{{
-		Name: "Ollama.app/../invalid-entry",
+		Name: "Ollamapaca.app/../invalid-entry",
 		Body: []byte("payload"),
 	}}); err != nil {
 		t.Fatal(err)
@@ -189,7 +189,7 @@ func TestDoUpgradeRejectsInvalidBundlePath(t *testing.T) {
 
 func TestDoUpgradeAtStartup(t *testing.T) {
 	tmpDir := t.TempDir()
-	BundlePath = filepath.Join(tmpDir, "Ollama.app")
+	BundlePath = filepath.Join(tmpDir, "Ollamapaca.app")
 	appBackupDir = filepath.Join(tmpDir, "backup")
 	UpdateStageDir = filepath.Join(tmpDir, "updates")
 	UpgradeMarkerFile = filepath.Join(tmpDir, "upgraded")
@@ -207,15 +207,15 @@ func TestDoUpgradeAtStartup(t *testing.T) {
 
 	if err := zipCreationHelper(bundle, []testPayload{
 		{
-			Name: "Ollama.app/Contents/MacOS/Ollama",
+			Name: "Ollamapaca.app/Contents/MacOS/Ollamapaca",
 			Body: []byte("would be app binary"),
 		},
 		{
-			Name: "Ollama.app/Contents/Resources/ollama",
+			Name: "Ollamapaca.app/Contents/Resources/ollama",
 			Body: []byte("would be the cli"),
 		},
 		{
-			Name: "Ollama.app/Contents/Resources/dummy",
+			Name: "Ollamapaca.app/Contents/Resources/dummy",
 			Body: []byte("./ollama"),
 			Mode: os.ModeSymlink,
 		},
@@ -233,7 +233,7 @@ func TestDoUpgradeAtStartup(t *testing.T) {
 
 func TestVerifyDownloadFailures(t *testing.T) {
 	tmpDir := t.TempDir()
-	BundlePath = filepath.Join(tmpDir, "Ollama.app")
+	BundlePath = filepath.Join(tmpDir, "Ollamapaca.app")
 	UpdateStageDir = filepath.Join(tmpDir, "staging")
 	bundle := filepath.Join(UpdateStageDir, "foo", "ollama-darwin.zip")
 	if err := os.MkdirAll(filepath.Dir(bundle), 0o755); err != nil {
@@ -246,35 +246,35 @@ func TestVerifyDownloadFailures(t *testing.T) {
 	}{
 		{"invalid symlink target", []testPayload{
 			{
-				Name: "Ollama.app/",
+				Name: "Ollamapaca.app/",
 				Body: []byte{},
 			}, {
-				Name: "Ollama.app/Resources/ollama",
+				Name: "Ollamapaca.app/Resources/ollama",
 				Body: []byte("cli payload here"),
 			}, {
-				Name: "Ollama.app/Contents/MacOS/Ollama",
+				Name: "Ollamapaca.app/Contents/MacOS/Ollamapaca",
 				Body: []byte("../../../../invalid-target"),
 				Mode: os.ModeSymlink,
 			},
 		}, "bundle contains invalid symlink"},
 		{"invalid archive symlink target", []testPayload{
 			{
-				Name: "Ollama.app/Contents/MacOS/Ollama",
+				Name: "Ollamapaca.app/Contents/MacOS/Ollamapaca",
 				Body: []byte("../../../invalid-target"),
 				Mode: os.ModeSymlink,
 			},
 		}, "bundle contains invalid symlink"},
 		{"absolute", []testPayload{{
-			Name: "Ollama.app/Contents/MacOS/Ollama",
+			Name: "Ollamapaca.app/Contents/MacOS/Ollamapaca",
 			Body: []byte("/etc/foo"),
 			Mode: os.ModeSymlink,
 		}}, "bundle contains absolute"},
 		{"invalid relative file", []testPayload{{
-			Name: "Ollama.app/../invalid-entry",
+			Name: "Ollamapaca.app/../invalid-entry",
 			Body: []byte("payload"),
 		}}, "bundle contains invalid path"},
 		{"invalid relative directory", []testPayload{{
-			Name: "Ollama.app/../invalid-entry/",
+			Name: "Ollamapaca.app/../invalid-entry/",
 			Body: []byte{},
 		}}, "bundle contains invalid path"},
 		{"absolute file", []testPayload{{
@@ -282,12 +282,12 @@ func TestVerifyDownloadFailures(t *testing.T) {
 			Body: []byte("payload"),
 		}}, "bundle contains invalid path"},
 		{"missing", []testPayload{{
-			Name: "Ollama.app/Contents/MacOS/Ollama",
+			Name: "Ollamapaca.app/Contents/MacOS/Ollamapaca",
 			Body: []byte("../nothere"),
 			Mode: os.ModeSymlink,
 		}}, "no such file or directory"},
 		{"unsigned", []testPayload{{
-			Name: "Ollama.app/Contents/MacOS/Ollama",
+			Name: "Ollamapaca.app/Contents/MacOS/Ollamapaca",
 			Body: []byte{0xfa, 0xcf, 0xfe, 0xed, 0x00, 0x0c, 0x01, 0x00},
 		}}, "signature verification failed"},
 	}
@@ -357,7 +357,7 @@ func TestAlreadyMoved(t *testing.T) {
 		t.Fatal("failed to find executable path")
 	}
 	tmpDir := t.TempDir()
-	testApp := filepath.Join(tmpDir, "Ollama.app")
+	testApp := filepath.Join(tmpDir, "Ollamapaca.app")
 	err = os.MkdirAll(filepath.Join(testApp, "Contents", "MacOS"), 0o755)
 	if err != nil {
 		t.Fatal("failed to create Contents dir")

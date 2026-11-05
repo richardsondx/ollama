@@ -15,6 +15,7 @@ const Message = React.memo(
     isFaded,
     browserToolResult,
     lastToolQuery,
+    hideBrowserComputerTools,
   }: {
     message: MessageType;
     onEditMessage?: (content: string, index: number) => void;
@@ -24,6 +25,11 @@ const Message = React.memo(
     // TODO(drifkin): this type isn't right
     browserToolResult?: BrowserToolResult;
     lastToolQuery?: string;
+    // When true, browser and computer tool calls and tool messages
+    // are not rendered here. MessageList renders them instead as
+    // one TurnSummary for the turn, so the transcript shows plain
+    // step names, not raw tool names, by default.
+    hideBrowserComputerTools?: boolean;
   }) => {
     if (message.role === "user") {
       return (
@@ -42,6 +48,7 @@ const Message = React.memo(
           isFaded={isFaded}
           browserToolResult={browserToolResult}
           lastToolQuery={lastToolQuery}
+          hideBrowserComputerTools={hideBrowserComputerTools}
         />
       );
     }
@@ -53,7 +60,8 @@ const Message = React.memo(
       prevProps.messageIndex === nextProps.messageIndex &&
       prevProps.isStreaming === nextProps.isStreaming &&
       prevProps.isFaded === nextProps.isFaded &&
-      prevProps.browserToolResult === nextProps.browserToolResult
+      prevProps.browserToolResult === nextProps.browserToolResult &&
+      prevProps.hideBrowserComputerTools === nextProps.hideBrowserComputerTools
     );
   },
 );
@@ -880,6 +888,7 @@ function OtherRoleMessage({
   isFaded,
   browserToolResult,
   lastToolQuery,
+  hideBrowserComputerTools,
 }: {
   message: MessageType;
   previousMessage?: MessageType;
@@ -888,8 +897,35 @@ function OtherRoleMessage({
   // TODO(drifkin): this type isn't right
   browserToolResult?: BrowserToolResult;
   lastToolQuery?: string;
+  hideBrowserComputerTools?: boolean;
 }) {
   const messageRef = useRef<HTMLDivElement>(null);
+
+  // A browser or computer tool message is rendered by the turn
+  // summary instead, so it renders nothing on its own.
+  if (
+    hideBrowserComputerTools &&
+    message.role === "tool" &&
+    typeof (message as any).tool_name === "string" &&
+    ((message as any).tool_name.startsWith("browser.") ||
+      (message as any).tool_name.startsWith("computer."))
+  ) {
+    return null;
+  }
+  const visibleToolCalls = hideBrowserComputerTools
+    ? (message.tool_calls || []).filter(
+        (toolCall) =>
+          !toolCall.function.name.startsWith("browser.") &&
+          !toolCall.function.name.startsWith("computer."),
+      )
+    : message.tool_calls;
+  const visibleToolCall =
+    hideBrowserComputerTools &&
+    message.tool_call &&
+    (message.tool_call.function.name.startsWith("browser.") ||
+      message.tool_call.function.name.startsWith("computer."))
+      ? undefined
+      : message.tool_call;
 
   return (
     <div
@@ -948,9 +984,9 @@ function OtherRoleMessage({
         })()}
       </div>
 
-      {message.tool_calls && message.tool_calls.length > 0 && (
+      {visibleToolCalls && visibleToolCalls.length > 0 && (
         <div>
-          {message.tool_calls.map((toolCall: ToolCall, index: number) => (
+          {visibleToolCalls.map((toolCall: ToolCall, index: number) => (
             <ToolCallDisplay
               key={index}
               toolCall={toolCall}
@@ -960,9 +996,9 @@ function OtherRoleMessage({
         </div>
       )}
 
-      {message.tool_call && (
+      {visibleToolCall && (
         <ToolCallDisplay
-          toolCall={message.tool_call}
+          toolCall={visibleToolCall}
           browserToolResult={browserToolResult}
         />
       )}
@@ -971,8 +1007,8 @@ function OtherRoleMessage({
         message.role === "assistant" &&
         message.content &&
         message.content.trim() &&
-        (!message.tool_calls || message.tool_calls.length === 0) &&
-        !message.tool_call && (
+        (!visibleToolCalls || visibleToolCalls.length === 0) &&
+        !visibleToolCall && (
           <div className="-ml-1">
             <CopyButton
               content={message.content || ""}
