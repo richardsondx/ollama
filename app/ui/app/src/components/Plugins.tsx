@@ -85,6 +85,31 @@ type ModelCheck = {
   status: "works" | "wont" | "unknown";
 };
 
+type Authorization = {
+  computer: { mode: string; dry_run: boolean; real_requested: boolean };
+  enabled_plugins: string[];
+  allowed_apps: string[];
+  app_restriction_active: boolean;
+  allowed_tools: Record<string, boolean>;
+  disallowed_tools: string[];
+  sites: string[];
+  localhost_auto_allowed: boolean;
+};
+
+// The seed authorization endpoint lives on 11435, not on the fork
+// server on 11434, so it is fetched directly here. If the seed is
+// not running, this section shows a plain note and nothing else
+// on the page breaks.
+const SEED_BASE = "http://127.0.0.1:11435";
+
+async function fetchAuthorization(): Promise<Authorization> {
+  const response = await fetch(`${SEED_BASE}/api/authorization`);
+  if (!response.ok) {
+    throw new Error(`Authorization answered ${response.status}`);
+  }
+  return (await response.json()) as Authorization;
+}
+
 async function checkOneModel(name: string): Promise<ModelCheck> {
   try {
     const response = await fetch(`${API_BASE}/api/show`, {
@@ -137,6 +162,10 @@ export default function Plugins() {
   const [modelChecks, setModelChecks] = useState<ModelCheck[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [auth, setAuth] = useState<Authorization | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authResult, setAuthResult] = useState<string | null>(null);
+  const [newApp, setNewApp] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -222,6 +251,74 @@ export default function Plugins() {
       setError(err instanceof Error ? err.message : "Could not change plugin");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const loadAuth = async () => {
+    setAuthError(null);
+    try {
+      setAuth(await fetchAuthorization());
+    } catch {
+      setAuth(null);
+      setAuthError(
+        "The seed server on 11435 is not reachable, so computer status is unavailable. Plugin list, enable, disable, and chat still work.",
+      );
+    }
+  };
+
+  useEffect(() => {
+    void loadAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const requestAccess = async () => {
+    setAuthResult(null);
+    try {
+      const response = await fetch(
+        `${SEED_BASE}/api/authorization/request-computer-access`,
+        { method: "POST" },
+      );
+      const data = await response.json();
+      if (data.granted) {
+        setAuthResult("Computer access appears granted.");
+      } else {
+        setAuthResult(
+          data.instructions || data.reason || "Computer access is not granted.",
+        );
+      }
+      await loadAuth();
+    } catch {
+      setAuthResult("The seed server on 11435 is not reachable.");
+    }
+  };
+
+  const setAppAllowed = async (app: string, allowed: boolean) => {
+    try {
+      await fetch(`${SEED_BASE}/api/authorization/allowed-apps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ app, allowed }),
+      });
+      await loadAuth();
+    } catch {
+      setAuthError("The seed server on 11435 is not reachable.");
+    }
+  };
+
+  const setToolAllowed = async (
+    plugin: string,
+    tool: string,
+    allowed: boolean,
+  ) => {
+    try {
+      await fetch(`${SEED_BASE}/api/authorization/allowed-tools`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plugin, tool, allowed }),
+      });
+      await loadAuth();
+    } catch {
+      setAuthError("The seed server on 11435 is not reachable.");
     }
   };
 
@@ -530,6 +627,146 @@ export default function Plugins() {
                 <dd>{selected.enabled ? "Enabled" : "Not enabled"}</dd>
               </div>
             </dl>
+
+            <h4 className="mt-8 text-base font-medium">Authorization</h4>
+            <div className="mt-3 rounded-2xl bg-neutral-100 px-5 py-4 dark:bg-neutral-800">
+              <p className="text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                One place to grant, see, and revoke tool, app, and site
+                permissions. Enabling a plugin is still the master switch.
+                Authorization does not bypass confirmation for risky
+                actions, and Ollamapaca cannot grant macOS Accessibility
+                itself, it can only request and recheck it.
+              </p>
+              {authError && (
+                <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
+                  {authError}
+                </p>
+              )}
+              {auth && (
+                <>
+                  <p className="mt-3 text-sm font-medium">Computer access</p>
+                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    Mode: {auth.computer.mode} · Real requested:{" "}
+                    {auth.computer.real_requested ? "yes" : "no"}
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => void requestAccess()}
+                      className="rounded-full bg-black px-4 py-2 text-sm text-white dark:bg-white dark:text-black"
+                    >
+                      Request computer access
+                    </button>
+                    <button
+                      onClick={() => void loadAuth()}
+                      className="rounded-full border border-neutral-300 px-4 py-2 text-sm dark:border-neutral-600"
+                    >
+                      Recheck
+                    </button>
+                  </div>
+                  {authResult && (
+                    <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
+                      {authResult}
+                    </p>
+                  )}
+                  {!auth.computer.real_requested && (
+                    <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
+                      Real mode is off. Start the seed server on macOS with
+                      OLLAMA_COMPUTER_USE_REAL=1, then request access. On
+                      macOS, grant Accessibility in System Settings,
+                      Privacy and Security, Accessibility, to the app
+                      running the seed server, restart the seed, then
+                      recheck.
+                    </p>
+                  )}
+
+                  <p className="mt-4 text-sm font-medium">Allowed apps</p>
+                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    {auth.app_restriction_active
+                      ? "Restriction is on. Only apps listed here can be opened, clicked, or typed into."
+                      : "No app restriction yet. Adding an app turns the restriction on."}
+                  </p>
+                  {auth.allowed_apps.length === 0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {auth.allowed_apps.map((app) => (
+                        <li key={app} className="flex items-center justify-between gap-2 text-sm">
+                          <span>{app}</span>
+                          <button
+                            onClick={() => void setAppAllowed(app, false)}
+                            className="rounded-full border border-neutral-300 px-3 py-1 text-xs dark:border-neutral-600"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={newApp}
+                      onChange={(e) => setNewApp(e.target.value)}
+                      placeholder="App name, for example Google Chrome"
+                      className="w-full rounded-full border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-900"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newApp.trim()) {
+                          void setAppAllowed(newApp.trim(), true);
+                          setNewApp("");
+                        }
+                      }}
+                      className="flex-none rounded-full bg-black px-4 py-2 text-sm text-white dark:bg-white dark:text-black"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  <p className="mt-4 text-sm font-medium">Allowed tools</p>
+                  {["browser", "computer", "cua"].map((pluginName) => {
+                    const plugin = plugins.find((p) => p.name === pluginName);
+                    if (!plugin) return null;
+                    return (
+                      <div key={pluginName} className="mt-2">
+                        <p className="text-sm font-medium">{pluginName}</p>
+                        {plugin.tools.map((tool) => {
+                          const key = `${pluginName}.${tool.name}`;
+                          const allowed = auth.allowed_tools[key] !== false;
+                          return (
+                            <div key={key} className="flex items-center justify-between gap-2 py-1 text-sm">
+                              <span>{tool.name}</span>
+                              <button
+                                onClick={() => void setToolAllowed(pluginName, tool.name, !allowed)}
+                                className="rounded-full border border-neutral-300 px-3 py-1 text-xs dark:border-neutral-600"
+                              >
+                                {allowed ? "On" : "Off"}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  <p className="mt-4 text-sm font-medium">Allowed sites</p>
+                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                    These are sites with registered WebMCP tools only. The
+                    Chrome popup is still the place that adds a remote
+                    site. Localhost and 127.0.0.1 are auto-allowed in
+                    local mode.
+                  </p>
+                  {auth.sites.length === 0 ? (
+                    <p className="mt-1 text-sm text-neutral-500">None</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {auth.sites.map((site) => (
+                        <li key={site} className="text-sm">{site}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </section>
