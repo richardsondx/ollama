@@ -8,12 +8,12 @@ Set up Ollama with plugins on my machine, locally only, end to end, and prove ea
 Local only means: no push, no deploy, no publish, no post, no send, no pay, and no delete. Do not change Ollama model runners, and do not copy OpenAI code, the ChatGPT extension, or any proprietary computer control package.
 
 There are two parts, and they are not the same repo:
-1. This fork, branch plugin-seed: the Go plugin loader inside Ollama itself, plus the Plugins page inside the Ollama desktop app.
+1. This fork, branch main: the Go plugin loader inside Ollama itself, plus the Plugins page inside the Ollama desktop app.
 2. The companion seed, https://github.com/richardsondx/ollama-plugin-seed : the standalone Plugins page on port 11435, the Chrome extension, and a local WebMCP demo page.
 
 Fork part, in order:
-1. Get a local copy of this fork, branch plugin-seed. If a local copy already exists on branch plugin-seed and contains app/ui/app/src/components/Plugins.tsx, use that copy. If not, clone this branch now, you are explicitly allowed to clone it for this setup:
-   git clone --branch plugin-seed https://github.com/richardsondx/ollama.git
+1. Get a local copy of this fork, branch main. If a local copy already exists on branch main and contains app/ui/app/src/components/Plugins.tsx, use that copy. If not, clone this branch now, you are explicitly allowed to clone it for this setup:
+   git clone https://github.com/richardsondx/ollamapaca.git
    Do not use main. Main is still upstream Ollama with no plugin code. After cloning, verify app/ui/app/src/components/Plugins.tsx exists. If it does not, stop and tell me, do not assume it is there. Do not use the companion seed repo as a substitute for the fork, and do not use a Downloads folder that is not a git repository.
 2. Check Go 1.26.10 is available, matching the fork go.mod. If it is not, install it and say so, do not build with a different Go version and claim it matches.
 3. Build the desktop app UI: in app/ui/app, run npm install, then npm run build. It must pass TypeScript and Vite with no errors. If the route file needs regenerating, run vite build once first, then run the full build again.
@@ -42,4 +42,4 @@ What is honest, and what is not yet done:
 
 If your agent asks which model to use, pick a tool-capable model you have installed, such as a Llama 3.1, Qwen 2.5 or 3, or Mistral class model.
 
-Note for sharing: this prompt lives in this file, on branch plugin-seed in https://github.com/richardsondx/ollama. If Codex runs on a different machine with no local copy, step 1 above tells it to clone that branch, so it can get the Plugins UI and this prompt from GitHub.
+Note for sharing: this prompt lives in this file, on branch main in https://github.com/richardsondx/ollamapaca. If Codex runs on a different machine with no local copy, step 1 above tells it to clone that branch, so it can get the Plugins UI and this prompt from GitHub.

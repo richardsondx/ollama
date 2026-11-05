@@ -1,14 +1,24 @@
 # Ollamapaca
 
-Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use browser, computer, and skill plugins locally, without a hosted service. The app name is Ollamapaca, the repo stays richardsondx/ollama, branch plugin-seed, and the packaged Mac bundle is Ollamapaca.app, bundle id ai.ollamapaca.app. The server binary is still ollama, and the Go module is still github.com/ollama/ollama.
-
-Branch: plugin-seed. Main on this fork is still upstream Ollama, with no plugin code. Do not use main for plugins.
+Ollamapaca is Ollama, with plugins. This is a fork of ollama/ollama, not upstream Ollama. It adds a plugin loader, a Plugins page inside the desktop app, and a companion seed for a Chrome WebMCP plugin, so an open model can use browser, computer, and skill plugins locally, without a hosted service. The repo is https://github.com/richardsondx/ollamapaca, branch main, and the packaged Mac bundle is Ollamapaca.app, bundle id ai.ollamapaca.app. The server binary is still ollama, and the Go module is still github.com/ollama/ollama.
 
 Companion seed: https://github.com/richardsondx/ollama-plugin-seed, the plugin set, the Chrome extension, and the local plugin server that executes plugin tools.
 
-<a href="docs/plugins-screenshot.png"><img src="docs/plugins-screenshot.png" width="600" alt="Plugins page from the plugin seed, with the browser plugin enabled and computer and skill-creator plugins listed"></a>
+## See it in use
 
-*Click the image to see it full size. The screenshot is the Plugins page from the companion seed server on port 11435, not the fork desktop Plugins page, which has not been screenshotted on a Mac yet.*
+Real screenshots of the Ollamapaca app running on a Mac, not mockups. Click an image to see it full size.
+
+<a href="docs/images/ollamapaca-chat.png"><img src="docs/images/ollamapaca-chat.png" width="600" alt="Ollamapaca chat on a Mac, with the @ picker showing browser and computer plugins"></a>
+
+Chat with the @ picker: type @ and pick browser or computer for that turn.
+
+<a href="docs/images/ollamapaca-plugins-browser.png"><img src="docs/images/ollamapaca-plugins-browser.png" width="600" alt="Ollamapaca Plugins page on a Mac, browser plugin enabled with 5 tools"></a>
+
+Plugins page, browser plugin enabled, 5 tools.
+
+<a href="docs/images/ollamapaca-plugins-computer.png"><img src="docs/images/ollamapaca-plugins-computer.png" width="600" alt="Ollamapaca Plugins page on a Mac, computer plugin enabled with 7 tools"></a>
+
+Plugins page, computer plugin enabled, 7 tools.
 
 ## Set it up with Codex
 
